@@ -1,0 +1,21 @@
+<h1>Articles</h1>
+
+{% for submission in object_list %}
+    <div>
+        <h1>{{ submission.gender }} | {{ submission.age }} : {{ submission.hotness }}
+            / {{ submission.usable_comments.count }}</h1>
+    <h3>{{ submission.score }}</h3><h4>{{ submission.title }}</h4>
+        <a href="http://reddit.com{{ submission.permalink }}">
+            <img src="{{ submission.images.first.image.url }}" height="150px">
+        </a>
+    <div style="height:150px; overflow-y:scroll">
+        {% for comment in submission.usable_comments.all %}
+            <span>{{ comment.rating }}</span>
+            <p>{{ comment.body }}</p>
+        {% endfor %}
+    </div>
+    </div>
+    <hr>
+{% empty %}
+    <p>No submissions yet.</p>
+{% endfor %}
