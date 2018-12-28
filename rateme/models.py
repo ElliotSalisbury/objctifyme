@@ -1,10 +1,12 @@
 from django.db import models
 
+
 class User(models.Model):
     id = models.CharField(max_length=256, primary_key=True)
 
     def __str__(self):
         return self.id
+
 
 class Submission(models.Model):
     id = models.CharField(max_length=256, primary_key=True)
@@ -36,9 +38,21 @@ class Submission(models.Model):
     def usable_comments(self):
         return self.comments.filter(rating__isnull=False)
 
+
 class SubmissionImage(models.Model):
     submission = models.ForeignKey("Submission", on_delete=models.CASCADE, related_name="images")
     image = models.ImageField()
+    face_count = models.IntegerField()
+
+class ImageProcessing(models.Model):
+    image = models.OneToOneField("SubmissionImage", on_delete=models.CASCADE, primary_key=True, related_name="processing")
+    texture = models.ImageField()
+    shape_coefficients = models.CharField(max_length=4096)
+    color_coefficients = models.CharField(max_length=4096)
+    expression_coefficients = models.CharField(max_length=4096)
+    pitch = models.FloatField()
+    yaw = models.FloatField()
+    roll = models.FloatField()
 
 
 class Comment(models.Model):
@@ -50,7 +64,7 @@ class Comment(models.Model):
     author = models.ForeignKey("User", on_delete=models.CASCADE, related_name="comments")
     created = models.DateTimeField()
     permalink = models.URLField()
-    score =  models.IntegerField()
+    score = models.IntegerField()
 
     def __str__(self):
         return "{}: {}/10  ('{}')".format(self.author, self.rating, self.body)
