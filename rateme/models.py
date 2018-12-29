@@ -44,8 +44,21 @@ class SubmissionImage(models.Model):
     image = models.ImageField()
     face_count = models.IntegerField()
 
+
 class ImageProcessing(models.Model):
-    image = models.OneToOneField("SubmissionImage", on_delete=models.CASCADE, primary_key=True, related_name="processing")
+    image = models.OneToOneField("SubmissionImage", on_delete=models.CASCADE, primary_key=True,
+                                 related_name="processing")
+    texture = models.ImageField()
+    shape_coefficients = models.CharField(max_length=4096)
+    color_coefficients = models.CharField(max_length=4096)
+    expression_coefficients = models.CharField(max_length=4096)
+    pitch = models.FloatField()
+    yaw = models.FloatField()
+    roll = models.FloatField()
+
+
+class FaceProcessing(models.Model):
+    image = models.ForeignKey("SubmissionImage", on_delete=models.CASCADE, related_name="face_processings")
     texture = models.ImageField()
     shape_coefficients = models.CharField(max_length=4096)
     color_coefficients = models.CharField(max_length=4096)
