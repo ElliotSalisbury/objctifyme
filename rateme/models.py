@@ -1,9 +1,14 @@
 from django.db import models
-from worker_reliability import RATINGS_COUNT_THRESH, ALL_MEAN, ALL_STD, NORM_MEAN, NORM_STD
 import numpy as np
 
 class User(models.Model):
     id = models.CharField(max_length=256, primary_key=True)
+
+    NORM_MEAN = 5
+    NORM_STD = 3
+    RATINGS_COUNT_THRESH = 3
+    ALL_MEAN = 6.929547654727015
+    ALL_STD = 1.675662345628553
 
     def __str__(self):
         return self.id
@@ -13,8 +18,8 @@ class User(models.Model):
         for comment in self.comments.filter(rating__isnull=False):
             ratings.append(comment.rating)
 
-        if len(ratings) < RATINGS_COUNT_THRESH:
-            mean, std = ALL_MEAN, ALL_STD
+        if len(ratings) < self.RATINGS_COUNT_THRESH:
+            mean, std = self.ALL_MEAN, self.ALL_STD
         else:
             mean, std = np.mean(ratings), np.std(ratings)
             std = max(std, 0.0001)
@@ -57,7 +62,7 @@ class Submission(models.Model):
             user_mean, user_std = comment.author.get_mean_std()
 
             actual_rating = (rating - user_mean) / user_std
-            actual_rating = (actual_rating * NORM_STD) + NORM_MEAN
+            actual_rating = (actual_rating * User.NORM_STD) + User.NORM_MEAN
 
             actual_ratings.append(actual_rating)
 
