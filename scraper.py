@@ -25,6 +25,8 @@ detector = dlib.get_frontal_face_detector()
 
 reAgeGender = re.compile("(\d+)[\s]*([MF])")
 reGenderAge = re.compile("([MF])[\s]*(\d+)")
+reJustGender = re.compile("[\[\(]\s*([MFmf])\s*[\]\)]")
+reBrackets = re.compile("[\[\{\(\)\}\]\\\/]")
 reRatingSlash = re.compile("(\d+)(\.\d+)?\/10")
 reImgurAlbum = re.compile("imgur\.com\/a\/(\w+)")
 reImgurGallery = re.compile("imgur\.com\/gallery\/(\w+)")
@@ -115,22 +117,34 @@ def downloadImages(dstPath, imgurls):
     return filepaths
 
 
-def parse_title(title):
-    title = re.sub("[\[\{\(\)\}\]\\\/]", "", title)
+def parse_title(title_orig):
+    age, gender = None, None
+
+    title = reBrackets.sub("", title_orig)
     title = title.upper()
+
+    # try age gender "[21M]"
     result = reAgeGender.search(title)
     if result:
-        age = result.group(1)
+        age = int(result.group(1))
         gender = result.group(2)
-    else:
-        result = reGenderAge.search(title)
-        if result:
-            age = result.group(2)
-            gender = result.group(1)
-        else:
-            raise TitleNoParse("Title cannot be parsed: {}".format(title))
 
-    return int(age), gender
+        return age, gender
+
+    # try gender age "[M21]"
+    result = reGenderAge.search(title)
+    if result:
+        gender = result.group(1)
+        age = int(result.group(2))
+
+        return age, gender
+
+    # try only the gender "blah blah [m] blah"
+    result = reJustGender.search(title_orig)
+    if result:
+        gender = result.group(1).upper()
+
+    return age, gender
 
 
 def get_author_name(author):
@@ -193,22 +207,9 @@ def parse_submission(imgur, submission):
     try:
         db_submission = Submission.objects.get(pk=submission.id)
 
-        print("\t\tSubmission found, retrying to download images")
-        # download the submissions photos
-        img_dir_path, filepaths = download_photos(imgur, submission)
-
-        print("\t\thas {} usable images".format(len(filepaths)))
-        db_submission.has_images = len(filepaths) > 0
         db_submission.score = submission.score
         db_submission.upvote_ratio = submission.upvote_ratio
         db_submission.save()
-
-        # save all the submission images
-        for path_n_count in filepaths:
-            filepath = path_n_count[0]
-            count = path_n_count[1]
-            SubmissionImage.objects.update_or_create(submission=db_submission, image=filepath,
-                                                     defaults={'face_count': count})
 
     except Submission.DoesNotExist as e:
         submission_created = datetime.datetime.fromtimestamp(submission.created_utc, tz=datetime.timezone.utc)
@@ -304,10 +305,6 @@ def scrape():
             print("{}/{}: {}".format(i, to_check_len, submission.title))
             db_submission = parse_submission(imgur, submission)
 
-            # skip grabbing the comments if the submission doesnt have any usable images
-            if not db_submission.has_images:
-                continue
-
             # parse the comments in that submission
             for top_level_comment in submission.comments:
                 db_comment = parse_comment(db_submission, top_level_comment)
@@ -323,10 +320,6 @@ def scrape():
     for submission in subreddit.hot(limit=1000):
         try:
             db_submission = parse_submission(imgur, submission)
-
-            # skip grabbing the comments if the submission doesnt have any usable images
-            if not db_submission.has_images:
-                continue
 
             # parse the comments in that submission
             for top_level_comment in submission.comments:
@@ -345,10 +338,6 @@ def scrape():
             submission = comment.submission
 
             db_submission = parse_submission(imgur, submission)
-
-            # skip grabbing the comments if the submission doesnt have any usable images
-            if not db_submission.has_images:
-                continue
 
             # parse the comments in that submission
             for top_level_comment in submission.comments:

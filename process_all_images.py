@@ -3,11 +3,13 @@ import math
 import os
 import os.path
 import sys
+import traceback
 
 import cv2
 import dlib
 import numpy as np
 import tensorflow as tf
+from django.db.models import Count, Q, F
 
 os.environ.setdefault("DLIB_SHAPEPREDICTOR_PATH", "./processing/shape_predictor_68_face_landmarks.dat")
 os.environ.setdefault("EOS_DATA_PATH", "./processing/share")
@@ -21,7 +23,7 @@ import django
 django.setup()
 
 from django.conf import settings
-from rateme.models import SubmissionImage, FaceProcessing
+from rateme.models import SubmissionImage, FaceProcessing, Submission
 
 sys.path.append('./processing/kaffe')
 sys.path.append('./processing/ResNet')
@@ -53,21 +55,7 @@ MEDIA_ROOT = settings.MEDIA_ROOT
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(DLIB_SHAPEPREDICTOR_PATH)
 
-
-def align_face_vertical(image, rect):
-    # get the line from the left to right eye
-    landmarks = getLandmarks(image, rect)
-    left_eye = np.mean(landmarks[LEFT_EYE], axis=0)
-    right_eye = np.mean(landmarks[RIGHT_EYE], axis=0)
-
-    # calculate the angle to make that horizontal
-    dX = right_eye[0] - left_eye[0]
-    dY = right_eye[1] - left_eye[1]
-    angle = np.degrees(np.arctan2(dY, dX))
-
-    # rotate the image getting the transform and it's inverse
-    im, M, invM = rotate_bound(image, angle)
-
+def rotated_rect_from_landmarks(landmarks, M, im):
     rotated_rect_ps = np.array([(np.matrix(M) * np.append(p, 1)[:, np.newaxis]) for p in landmarks],
                                dtype=np.float32).squeeze()
     rotated_rect_ps = np.array([np.min(rotated_rect_ps, axis=0), np.max(rotated_rect_ps, axis=0)])
@@ -83,7 +71,46 @@ def align_face_vertical(image, rect):
         right=int(math.ceil(rotated_rect_ps[1, 0])),
         bottom=int(math.ceil(rotated_rect_ps[1, 1])))
 
-    return im, M, invM, rotated_rect
+    return rotated_rect
+
+def align_face_vertical(image_orig, rect):
+    # get the initial landmarks guess
+    landmarks_orig = getLandmarks(image_orig, rect)
+
+    # get the line from the left to right eye
+    left_eye = np.mean(landmarks_orig[LEFT_EYE], axis=0)
+    right_eye = np.mean(landmarks_orig[RIGHT_EYE], axis=0)
+
+    # calculate the angle to make that horizontal
+    dX = right_eye[0] - left_eye[0]
+    dY = right_eye[1] - left_eye[1]
+    angle = np.degrees(np.arctan2(dY, dX))
+    rotate_angle = angle
+
+    # rotate the image getting the transform and it's inverse
+    rotated_im, M, invM = rotate_bound(image_orig, rotate_angle)
+    rotated_rect = rotated_rect_from_landmarks(landmarks_orig, M, rotated_im)
+
+    while abs(angle) > 4.0:
+        # get the landmarks guess
+        landmarks = getLandmarks(rotated_im, rotated_rect)
+
+        # get the line from the left to right eye
+        left_eye = np.mean(landmarks[LEFT_EYE], axis=0)
+        right_eye = np.mean(landmarks[RIGHT_EYE], axis=0)
+
+        # calculate the angle to make that horizontal
+        dX = right_eye[0] - left_eye[0]
+        dY = right_eye[1] - left_eye[1]
+        angle = np.degrees(np.arctan2(dY, dX))
+        rotate_angle += angle
+
+        # rotate the image getting the transform and it's inverse
+        rotated_im, M, invM = rotate_bound(image_orig, rotate_angle)
+        rotated_rect = rotated_rect_from_landmarks(landmarks_orig, M, rotated_im)
+
+
+    return rotated_im, M, invM, rotated_rect
 
 
 def rotate_bound(image, angle):
@@ -140,10 +167,14 @@ def preprocess_image(im, rect=None, guess_rect=None):
     face_im = cv2.resize(face_im, (_alexNetSize, _alexNetSize), interpolation=cv2.INTER_CUBIC)
     return face_im, rect
 
+def ensure_max_image_size(image, max_size=4096):
+    if image.shape[0] > max_size or image.shape[1] > max_size:
+        image = image_resize(image, max_width=max_size, max_height=max_size)
+    return image
+
 
 def extract_facial_features():
     # set up the network
-
     x = tf.placeholder(tf.float32, [FLAGS.batch_size, None, None, 3])
 
     ###################
@@ -207,82 +238,90 @@ def extract_facial_features():
         load_path = "./processing/Expression_Model/ini_exprNet_model.ckpt"
         saver_ini_expr_net.restore(sess, load_path)
 
-        images_to_process = SubmissionImage.objects.filter(face_processings__isnull=True)
-        # images_to_process = Submission.objects.get(id="2w9si0").images.all()
+        images_to_process = SubmissionImage.objects.all()\
+            .annotate(face_processing_count=Count("face_processings"))\
+            .filter(face_processing_count__lt=F("face_count"))
         images_to_process_len = len(images_to_process)
 
         for sub_i, submissionimage in enumerate(images_to_process):
-            relative_im_path = submissionimage.image.name
-            im_path = os.path.join(MEDIA_ROOT, relative_im_path)
+            try:
+                relative_im_path = submissionimage.image.name
+                im_path = os.path.join(MEDIA_ROOT, relative_im_path)
 
-            print("{}/{}: {}".format(sub_i, images_to_process_len, im_path))
+                print("{}/{}: {}".format(sub_i, images_to_process_len, im_path))
 
-            # load the image and resize it to something reasonable
-            image_orig = cv2.imread(im_path)
-            image_resized = image_resize(image_orig)
+                # load the image and resize it to something reasonable
+                image_orig_full = cv2.imread(im_path)
+                image_orig = ensure_max_image_size(image_orig_full)
+                image_resized = image_resize(image_orig_full)
 
-            h_scale = image_orig.shape[0] / image_resized.shape[0]
-            w_scale = image_orig.shape[1] / image_resized.shape[1]
+                h_scale = image_orig.shape[0] / image_resized.shape[0]
+                w_scale = image_orig.shape[1] / image_resized.shape[1]
 
-            # get the location of the face in the image
-            rects = detector(image_resized, 1)
-            for face_id, rect in enumerate(rects):
-                rect_resized = rect
-                rect_orig = dlib.rectangle(
-                    left=int(math.floor(rect_resized.left() * w_scale)),
-                    top=int(math.floor(rect_resized.top() * h_scale)),
-                    right=int(math.ceil(rect_resized.right() * w_scale)),
-                    bottom=int(math.ceil(rect_resized.bottom() * h_scale)))
+                # get the location of the face in the image
+                rects = detector(image_resized, 1)
+                for face_id, rect in enumerate(rects):
+                    try:
+                        rect_resized = rect
+                        rect_orig = dlib.rectangle(
+                            left=int(math.floor(rect_resized.left() * w_scale)),
+                            top=int(math.floor(rect_resized.top() * h_scale)),
+                            right=int(math.ceil(rect_resized.right() * w_scale)),
+                            bottom=int(math.ceil(rect_resized.bottom() * h_scale)))
 
-                # align the image so that the face is vertical
-                image_rotated, M, invM, rotated_rect = align_face_vertical(image_resized, rect_resized)
-                face_im, rect_rotated = preprocess_image(image_rotated, rect=None, guess_rect=rotated_rect)
+                        # align the image so that the face is vertical
+                        image_rotated, M, invM, rotated_rect = align_face_vertical(image_orig, rect_orig)
+                        face_im, rect_rotated = preprocess_image(image_rotated, rect=None, guess_rect=rotated_rect)
 
-                print("\trunning shape and expression networks")
-                image = np.asarray(face_im)
-                image = np.reshape(image, [1, FLAGS.image_size, FLAGS.image_size, 3])
-                Shape_Color_orig, Expr = sess.run([fc1ls, fc1le], feed_dict={x: image})
-                Shape_Color_orig = np.reshape(Shape_Color_orig, [-1])
-                expr = np.reshape(Expr, [-1])
+                        print("\trunning shape and expression networks")
+                        image = np.asarray(face_im)
+                        image = np.reshape(image, [1, FLAGS.image_size, FLAGS.image_size, 3])
+                        Shape_Color_orig, Expr = sess.run([fc1ls, fc1le], feed_dict={x: image})
+                        Shape_Color_orig = np.reshape(Shape_Color_orig, [-1])
+                        expr = np.reshape(Expr, [-1])
 
-                shape = Shape_Color_orig[0:99]
-                color = Shape_Color_orig[99:]
+                        shape = Shape_Color_orig[0:99]
+                        color = Shape_Color_orig[99:]
 
-                print("\tconverting to eos structures")
-                landmarks_rot = getLandmarks(image_rotated, rect_rotated)
-                landmarks_cor = np.array([(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
-                                         dtype=np.int).squeeze()
-                landmarks_cor_large = np.array([[p[0] * w_scale, p[1] * h_scale] for p in landmarks_cor], dtype=np.int)
+                        print("\tconverting to eos structures")
+                        landmarks_rot = getLandmarks(image_rotated, rect_rotated)
+                        landmarks_cor = np.array([(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
+                                                 dtype=np.int).squeeze()
+                        # landmarks_cor_large = np.array([[p[0] * w_scale, p[1] * h_scale] for p in landmarks_cor], dtype=np.int)
 
-                mesh_orig = BFM_FACEFITTING.getMeshFromShapeCeoffs(shape, expr, color)
-                pose_orig = BFM_FACEFITTING.getPoseFromMesh(landmarks_cor_large, mesh_orig, image_orig)
+                        mesh_orig = BFM_FACEFITTING.getMeshFromShapeCeoffs(shape, expr, color)
+                        pose_orig = BFM_FACEFITTING.getPoseFromMesh(landmarks_cor, mesh_orig, image_orig)
 
-                print("\textracting mesh texture")
-                max_side = np.max(np.max(landmarks_cor_large, axis=0) - np.min(landmarks_cor_large, axis=0)) * 2
-                texture = BFM_FACEFITTING.getTextureFromMesh(image_orig, mesh_orig, pose_orig,
-                                                             texture_size=int(max_side))
+                        print("\textracting mesh texture")
+                        max_side = np.max(np.max(landmarks_cor, axis=0) - np.min(landmarks_cor, axis=0)) * 2
+                        texture = BFM_FACEFITTING.getTextureFromMesh(image_orig, mesh_orig, pose_orig,
+                                                                     texture_size=int(max_side))
 
-                # save the shape, color, texture, expression to the database
-                print("\tsaving to db")
-                shape_str = json.dumps(shape.tolist())
-                color_str = json.dumps(color.tolist())
-                expr_str = json.dumps(expr.tolist())
-                pitch, yaw, roll = pose_orig.get_rotation_euler_angles()
+                        # save the shape, color, texture, expression to the database
+                        print("\tsaving to db")
+                        shape_str = json.dumps(shape.tolist())
+                        color_str = json.dumps(color.tolist())
+                        expr_str = json.dumps(expr.tolist())
+                        pitch, yaw, roll = pose_orig.get_rotation_euler_angles()
 
-                file_type = os.path.splitext(im_path)[1]
-                relative_texture_path = relative_im_path.replace(file_type, "_face{}_texture.jpg".format(face_id))
-                texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
-                cv2.imwrite(texture_path, texture[:, :, :3])
+                        file_type = os.path.splitext(im_path)[1]
+                        relative_texture_path = relative_im_path.replace(file_type, "_face{}_texture.jpg".format(face_id))
+                        texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
+                        cv2.imwrite(texture_path, texture[:, :, :3])
 
-                imgprocessing = FaceProcessing(image=submissionimage,
-                                                texture=relative_texture_path,
-                                                shape_coefficients=shape_str,
-                                                color_coefficients=color_str,
-                                                expression_coefficients=expr_str,
-                                                pitch=pitch,
-                                                yaw=yaw,
-                                                roll=roll)
-                imgprocessing.save()
+                        imgprocessing = FaceProcessing(image=submissionimage,
+                                                        texture=relative_texture_path,
+                                                        shape_coefficients=shape_str,
+                                                        color_coefficients=color_str,
+                                                        expression_coefficients=expr_str,
+                                                        pitch=pitch,
+                                                        yaw=yaw,
+                                                        roll=roll)
+                        imgprocessing.save()
+                    except Exception as e:
+                        traceback.print_exc()
+            except Exception as e:
+                traceback.print_exc()
 
 
 def main(_):
@@ -301,4 +340,5 @@ def main(_):
 
 
 if __name__ == '__main__':
+    # extract_facial_features()
     tf.app.run()
