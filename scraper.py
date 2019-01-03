@@ -18,6 +18,7 @@ django.setup()
 
 from rateme.models import Submission, Comment, SubmissionImage, User
 from django.conf import settings
+from process_all_images import extract_facial_features
 
 dstFolder = settings.MEDIA_ROOT
 
@@ -238,6 +239,9 @@ def parse_submission(imgur, submission):
             image = SubmissionImage(submission=db_submission, image=filepath, face_count=count)
             image.save()
 
+        # process those images
+        extract_facial_features()
+
     return db_submission
 
 
@@ -290,33 +294,6 @@ def scrape():
 
     imgur = ImgurClient("fc9299b2b6b8315", "e68c8491aa0be70333539be249096e940689c3bb")
 
-    existing_ids = Submission.objects.filter(has_images=True).values_list('id', flat=True)
-    to_check_ids = set(Submission.objects.filter(has_images=False).values_list('id', flat=True))
-    with open("sub_ids2.txt", "r") as f:
-        for submission_id in f.readlines():
-            to_check_ids.add(submission_id.strip())
-
-    to_check_ids = to_check_ids - set(existing_ids)
-    to_check_len = len(to_check_ids)
-
-    for i, submission_id in enumerate(to_check_ids):
-        submission = reddit.submission(submission_id)
-        try:
-            print("{}/{}: {}".format(i, to_check_len, submission.title))
-            db_submission = parse_submission(imgur, submission)
-
-            # parse the comments in that submission
-            for top_level_comment in submission.comments:
-                db_comment = parse_comment(db_submission, top_level_comment)
-
-        except (TitleNoParse, HTTPError) as e:
-            print(e)
-            continue
-        except Exception as e:
-            print(e)
-            traceback.print_exc()
-            continue
-
     for submission in subreddit.hot(limit=1000):
         try:
             db_submission = parse_submission(imgur, submission)
@@ -324,6 +301,8 @@ def scrape():
             # parse the comments in that submission
             for top_level_comment in submission.comments:
                 db_comment = parse_comment(db_submission, top_level_comment)
+
+            db_submission.calculate_rating()
 
         except (TitleNoParse, HTTPError) as e:
             print(e)
@@ -342,6 +321,8 @@ def scrape():
             # parse the comments in that submission
             for top_level_comment in submission.comments:
                 db_comment = parse_comment(db_submission, top_level_comment)
+
+            db_submission.calculate_rating()
 
         except (TitleNoParse, HTTPError) as e:
             print(e)

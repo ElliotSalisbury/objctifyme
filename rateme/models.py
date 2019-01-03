@@ -1,11 +1,25 @@
 from django.db import models
-
+from worker_reliability import RATINGS_COUNT_THRESH, ALL_MEAN, ALL_STD, NORM_MEAN, NORM_STD
+import numpy as np
 
 class User(models.Model):
     id = models.CharField(max_length=256, primary_key=True)
 
     def __str__(self):
         return self.id
+
+    def get_mean_std(self):
+        ratings = []
+        for comment in self.comments.filter(rating__isnull=False):
+            ratings.append(comment.rating)
+
+        if len(ratings) < RATINGS_COUNT_THRESH:
+            mean, std = ALL_MEAN, ALL_STD
+        else:
+            mean, std = np.mean(ratings), np.std(ratings)
+            std = max(std, 0.0001)
+
+        return mean, std
 
 
 class Submission(models.Model):
@@ -20,23 +34,42 @@ class Submission(models.Model):
     score = models.IntegerField()
     upvote_ratio = models.FloatField()
 
+    calculated_rating = models.FloatField(null=True)
+
     def __str__(self):
         return self.title
 
     @property
     def hotness(self):
-        score = 0
-        comments = self.usable_comments
-        size = comments.count()
-        if size:
-            for comment in comments:
-                score += comment.rating
-            return score / comments.count()
-        return 0
+        if self.calculated_rating is None:
+            return self.calculate_rating()
+
+        return self.calculated_rating
 
     @property
     def usable_comments(self):
         return self.comments.filter(rating__isnull=False)
+
+    def calculate_rating(self):
+        actual_ratings = []
+        for comment in self.usable_comments:
+            rating = comment.rating
+            user_mean, user_std = comment.author.get_mean_std()
+
+            actual_rating = (rating - user_mean) / user_std
+            actual_rating = (actual_rating * NORM_STD) + NORM_MEAN
+
+            actual_ratings.append(actual_rating)
+
+        if len(actual_ratings) > 0:
+            actual_rating = np.mean(actual_ratings)
+        else:
+            actual_rating = None
+
+        self.calculated_rating = actual_rating
+        self.save()
+
+        return self.calculated_rating
 
 
 class SubmissionImage(models.Model):
