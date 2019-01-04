@@ -9,7 +9,7 @@ import cv2
 import dlib
 import numpy as np
 import tensorflow as tf
-from django.db.models import Count, Q, F
+from django.db.models import Count, F
 
 os.environ.setdefault("DLIB_SHAPEPREDICTOR_PATH", "./processing/shape_predictor_68_face_landmarks.dat")
 os.environ.setdefault("EOS_DATA_PATH", "./processing/share")
@@ -23,13 +23,13 @@ import django
 django.setup()
 
 from django.conf import settings
-from rateme.models import SubmissionImage, FaceProcessing, Submission
+from rateme.models import SubmissionImage, FaceProcessing
 
 sys.path.append('./processing/kaffe')
 sys.path.append('./processing/ResNet')
 from processing.ResNet.ThreeDMM_shape import ResNet_101 as resnet101_shape
 from processing.ResNet.ThreeDMM_expr import ResNet_101 as resnet101_expr
-from scraper import image_resize
+from processing.im_utils import image_resize, rotate_bound, ensure_max_image_size
 
 tf.logging.set_verbosity(tf.logging.INFO)
 FLAGS = tf.app.flags.FLAGS
@@ -55,6 +55,7 @@ MEDIA_ROOT = settings.MEDIA_ROOT
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(DLIB_SHAPEPREDICTOR_PATH)
 
+
 def rotated_rect_from_landmarks(landmarks, M, im):
     rotated_rect_ps = np.array([(np.matrix(M) * np.append(p, 1)[:, np.newaxis]) for p in landmarks],
                                dtype=np.float32).squeeze()
@@ -72,6 +73,7 @@ def rotated_rect_from_landmarks(landmarks, M, im):
         bottom=int(math.ceil(rotated_rect_ps[1, 1])))
 
     return rotated_rect
+
 
 def align_face_vertical(image_orig, rect):
     # get the initial landmarks guess
@@ -109,38 +111,7 @@ def align_face_vertical(image_orig, rect):
         rotated_im, M, invM = rotate_bound(image_orig, rotate_angle)
         rotated_rect = rotated_rect_from_landmarks(landmarks_orig, M, rotated_im)
 
-
     return rotated_im, M, invM, rotated_rect
-
-
-def rotate_bound(image, angle):
-    # grab the dimensions of the image and then determine the
-    # center
-    (h, w) = image.shape[:2]
-    (cX, cY) = (w // 2, h // 2)
-
-    # grab the rotation matrix (applying the negative of the
-    # angle to rotate clockwise), then grab the sine and cosine
-    # (i.e., the rotation components of the matrix)
-    M = cv2.getRotationMatrix2D((cX, cY), angle, 1.0)
-    cos = np.abs(M[0, 0])
-    sin = np.abs(M[0, 1])
-
-    # compute the new bounding dimensions of the image
-    nW = int((h * sin) + (w * cos))
-    nH = int((h * cos) + (w * sin))
-
-    # adjust the rotation matrix to take into account translation
-    M[0, 2] += (nW / 2) - cX
-    M[1, 2] += (nH / 2) - cY
-
-    dstTri = np.array([[0, 0], [w, 0], [0, h]], dtype=np.float32)
-    srcTri = np.array([(np.matrix(M) * np.append(p, 1)[:, np.newaxis]) for p in dstTri], dtype=np.float32).squeeze()
-
-    invM = cv2.getAffineTransform(srcTri, dstTri)
-
-    # perform the actual rotation and return the image
-    return cv2.warpAffine(image, M, (nW, nH)), M, invM
 
 
 def preprocess_image(im, rect=None, guess_rect=None):
@@ -166,11 +137,6 @@ def preprocess_image(im, rect=None, guess_rect=None):
     face_im = border_im[bbox[1]:bbox[3], bbox[0]:bbox[2]].copy()
     face_im = cv2.resize(face_im, (_alexNetSize, _alexNetSize), interpolation=cv2.INTER_CUBIC)
     return face_im, rect
-
-def ensure_max_image_size(image, max_size=4096):
-    if image.shape[0] > max_size or image.shape[1] > max_size:
-        image = image_resize(image, max_width=max_size, max_height=max_size)
-    return image
 
 
 def extract_facial_features():
@@ -238,8 +204,8 @@ def extract_facial_features():
         load_path = "./processing/Expression_Model/ini_exprNet_model.ckpt"
         saver_ini_expr_net.restore(sess, load_path)
 
-        images_to_process = SubmissionImage.objects.all()\
-            .annotate(face_processing_count=Count("face_processings"))\
+        images_to_process = SubmissionImage.objects.all() \
+            .annotate(face_processing_count=Count("face_processings")) \
             .filter(face_processing_count__lt=F("face_count"))
         images_to_process_len = len(images_to_process)
 
@@ -285,8 +251,9 @@ def extract_facial_features():
 
                         print("\tconverting to eos structures")
                         landmarks_rot = getLandmarks(image_rotated, rect_rotated)
-                        landmarks_cor = np.array([(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
-                                                 dtype=np.int).squeeze()
+                        landmarks_cor = np.array(
+                            [(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
+                            dtype=np.int).squeeze()
                         # landmarks_cor_large = np.array([[p[0] * w_scale, p[1] * h_scale] for p in landmarks_cor], dtype=np.int)
 
                         mesh_orig = BFM_FACEFITTING.getMeshFromShapeCeoffs(shape, expr, color)
@@ -305,18 +272,19 @@ def extract_facial_features():
                         pitch, yaw, roll = pose_orig.get_rotation_euler_angles()
 
                         file_type = os.path.splitext(im_path)[1]
-                        relative_texture_path = relative_im_path.replace(file_type, "_face{}_texture.jpg".format(face_id))
+                        relative_texture_path = relative_im_path.replace(file_type,
+                                                                         "_face{}_texture.jpg".format(face_id))
                         texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
                         cv2.imwrite(texture_path, texture[:, :, :3])
 
                         imgprocessing = FaceProcessing(image=submissionimage,
-                                                        texture=relative_texture_path,
-                                                        shape_coefficients=shape_str,
-                                                        color_coefficients=color_str,
-                                                        expression_coefficients=expr_str,
-                                                        pitch=pitch,
-                                                        yaw=yaw,
-                                                        roll=roll)
+                                                       texture=relative_texture_path,
+                                                       shape_coefficients=shape_str,
+                                                       color_coefficients=color_str,
+                                                       expression_coefficients=expr_str,
+                                                       pitch=pitch,
+                                                       yaw=yaw,
+                                                       roll=roll)
                         imgprocessing.save()
                     except Exception as e:
                         traceback.print_exc()

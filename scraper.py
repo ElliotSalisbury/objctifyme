@@ -19,6 +19,7 @@ django.setup()
 from rateme.models import Submission, Comment, SubmissionImage, User
 from django.conf import settings
 from process_all_images import extract_facial_features
+from processing.im_utils import image_resize
 
 dstFolder = settings.MEDIA_ROOT
 
@@ -63,33 +64,6 @@ def getImgUrlsFromAlbum(imgur, albumId, is_gallery=False):
     except Exception as e:
         print(str(e))
     return imgurls
-
-
-def image_resize(image, max_width=512, max_height=512, inter=cv2.INTER_AREA):
-    # initialize the dimensions of the image to be resized and
-    # grab the image size
-    dim = None
-    (h, w) = image.shape[:2]
-
-    # check to see if the width is None
-    if h > w:
-        # calculate the ratio of the height and construct the
-        # dimensions
-        r = max_height / float(h)
-        dim = (int(w * r), max_height)
-
-    # otherwise, the height is None
-    else:
-        # calculate the ratio of the width and construct the
-        # dimensions
-        r = max_width / float(w)
-        dim = (max_width, int(h * r))
-
-    # resize the image
-    resized = cv2.resize(image, dim, interpolation=inter)
-
-    # return the resized image
-    return resized
 
 
 def check_image_usable(filepath):
