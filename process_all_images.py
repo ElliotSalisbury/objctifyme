@@ -51,6 +51,7 @@ mean_image_shape = np.transpose(mean_image_shape, [1, 2, 0])  # 224 x 224 x 3, [
 
 DLIB_SHAPEPREDICTOR_PATH = os.environ.get("DLIB_SHAPEPREDICTOR_PATH")
 MEDIA_ROOT = settings.MEDIA_ROOT
+MAX_ALIGN_ATTEMPTS = 10
 
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(DLIB_SHAPEPREDICTOR_PATH)
@@ -93,7 +94,8 @@ def align_face_vertical(image_orig, rect):
     rotated_im, M, invM = rotate_bound(image_orig, rotate_angle)
     rotated_rect = rotated_rect_from_landmarks(landmarks_orig, M, rotated_im)
 
-    while abs(angle) > 4.0:
+    attempt = 0
+    while abs(angle) > 4.0 and attempt < MAX_ALIGN_ATTEMPTS:
         # get the landmarks guess
         landmarks = getLandmarks(rotated_im, rotated_rect)
 
@@ -110,6 +112,8 @@ def align_face_vertical(image_orig, rect):
         # rotate the image getting the transform and it's inverse
         rotated_im, M, invM = rotate_bound(image_orig, rotate_angle)
         rotated_rect = rotated_rect_from_landmarks(landmarks_orig, M, rotated_im)
+
+        attempt += 1
 
     return rotated_im, M, invM, rotated_rect
 
