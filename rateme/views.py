@@ -1,8 +1,15 @@
 from django.db.models import Count, Q, F, Avg
-from django.shortcuts import render
+from django.shortcuts import render, render_to_response
 from django.views.generic.list import ListView
 
 from rateme.models import Submission
+
+def index(request):
+    return render_to_response('objctify/index.html')
+def about(request):
+    return render_to_response('objctify/about.html')
+def author(request):
+    return render_to_response('objctify/author.html')
 
 # Create your views here.
 class SubmissionListView(ListView):

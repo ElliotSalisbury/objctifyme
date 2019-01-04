@@ -1,0 +1,97 @@
+.navbar-brand {
+    font-family: 'Pacifico', cursive;
+}
+h4 {
+    font-family: 'Oswald', sans-serif;
+}
+
+.content {
+    padding-top:70px;
+}
+
+.profile {
+    text-align: center
+}
+.profile img{
+    width:180px;
+    height:240px;
+
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.center-text{
+    text-align: center;
+}
+
+.title {
+    font-size: 70px;
+    font-weight: bold;
+    font-family: 'Pacifico', cursive;
+    margin: 30px;
+}
+
+.textwrap {
+    white-space: normal;
+}
+
+#example_carousel {
+    position: relative;
+    height: 200px;
+    margin-bottom: 40px;
+    border: 1px solid rgb(240,240,240);
+    overflow: hidden;
+}
+#example_carousel ul{
+    position: relative;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 20000em;
+    white-space:nowrap;
+    transition-duration: 200ms;
+    transition-timing-function: linear;
+}
+#example_carousel ul li {
+    float: left;
+    margin-left:5px;
+    margin-right:5px;
+}
+#example_carousel ul li img {
+    position: relative;
+    height: 200px;
+}
+#example_carousel ul li.active img {
+    position: relative;
+    height: 240px;
+    margin-top: -20px;
+}
+
+@media (max-width: 767px) {
+  .hidden-xs-down {
+    display: none !important;
+  }
+}
+
+figcaption,
+figure,
+main {
+  display: block;
+}
+
+figure {
+  margin: 1em 40px;
+}
+.figure {
+  display: inline-block;
+}
+
+.figure-img {
+  margin-bottom: 0.5rem;
+  line-height: 1;
+}
+
+.figure-caption {
+  font-size: 90%;
+  color: #636c72;
+}

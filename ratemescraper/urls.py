@@ -21,7 +21,7 @@ from django.urls import include
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
-    url(r'^rateme/', include('rateme.urls')),
+    url(r'^', include('rateme.urls')),
 ]
 
 if settings.DEBUG:

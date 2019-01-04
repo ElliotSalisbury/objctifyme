@@ -1,0 +1,74 @@
+{% load staticfiles %}
+<html>
+<head>
+	<title>Objctify Me</title>
+	<link href="https://fonts.googleapis.com/css?family=Oswald|Pacifico" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap.min.css' %}">
+	<link rel="stylesheet" type="text/css" href="{% static 'css/objctify.css' %}">
+    
+	<script type="text/javascript" src="{% static 'js/jquery-1.11.1.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/bootstrap.min.js' %}"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta property="og:image" content="{% static 'img/beautyisdataful/3D Faces/banner.jpg' %}" />
+
+    {% block head_block %}{% endblock %}
+</head>
+<body style="padding-top:70px;">
+	<div class="navbar navbar-default navbar-fixed-top" role="navigation">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="sr-only">Toggle Navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="{% url 'home' %}">Objctify.me</a>
+            </div>
+            <div class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">
+                    <li id="-about">
+						<a href="{% url 'about' %}">
+                            How it works
+                        </a>
+					</li>
+                    <li id="-author">
+						<a href="{% url 'author' %}">
+                            About the author (Hire me)
+                        </a>
+					</li>
+{#                    <li id="-publications">#}
+{#						<a href="{% url 'crowdrobotics:publications' %}">#}
+{#                            Publications#}
+{#                        </a>#}
+{#					</li>#}
+{#					<li id="-contact">#}
+{#						<a href="{% url 'crowdrobotics:contact' %}">#}
+{#                            Contact#}
+{#                        </a>#}
+{#					</li>#}
+				</ul>
+            </div>
+        </div>
+    </div>
+
+
+	<div class="container" id="content">
+        {% block content_block %}{% endblock %}
+	</div>
+
+    {% block end_body_block %}{% endblock %}
+
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+      ga('create', 'UA-90729252-1', 'auto');
+      ga('send', 'pageview');
+
+    </script>
+</body>
+</html>
