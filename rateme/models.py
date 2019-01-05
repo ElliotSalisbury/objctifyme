@@ -56,18 +56,24 @@ class Submission(models.Model):
         return self.comments.filter(rating__isnull=False)
 
     def calculate_rating(self):
-        actual_ratings = []
-        for comment in self.usable_comments:
-            rating = comment.rating
-            user_mean, user_std = comment.author.get_mean_std()
+        usable_comments = self.usable_comments
+        if len(usable_comments) > 0:
+            actual_ratings = 0
+            total_weighting = 0
+            for comment in usable_comments:
+                rating = comment.rating
+                user_mean, user_std = comment.author.get_mean_std()
 
-            actual_rating = (rating - user_mean) / user_std
-            actual_rating = (actual_rating * User.NORM_STD) + User.NORM_MEAN
+                actual_rating = (rating - user_mean) / user_std
+                actual_rating = (actual_rating * User.NORM_STD) + User.NORM_MEAN
 
-            actual_ratings.append(actual_rating)
+                weight = user_std**2
+                weighted_rating = weight * actual_rating
 
-        if len(actual_ratings) > 0:
-            actual_rating = np.mean(actual_ratings)
+                actual_ratings += weighted_rating
+                total_weighting += weight
+
+            actual_rating = actual_ratings / total_weighting
         else:
             actual_rating = None
 
