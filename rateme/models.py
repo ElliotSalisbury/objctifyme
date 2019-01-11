@@ -115,7 +115,7 @@ class FaceProcessing(models.Model):
 class Comment(models.Model):
     id = models.CharField(max_length=256, primary_key=True)
     submission = models.ForeignKey("Submission", on_delete=models.CASCADE, related_name="comments")
-    body = models.CharField(max_length=4096)
+    body = models.TextField()
     rating = models.IntegerField(null=True)
     decimal = models.FloatField(null=True)
     author = models.ForeignKey("User", on_delete=models.CASCADE, related_name="comments")

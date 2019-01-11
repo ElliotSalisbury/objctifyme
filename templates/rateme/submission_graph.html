@@ -1,0 +1,194 @@
+{% extends 'objctify/base.html' %}
+{% load staticfiles %}
+
+
+{% block head_block %}
+    <script type="text/javascript" src="{% static 'js/jquery-1.11.1.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/bootstrap.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/echarts.min.js' %}"></script>
+{% endblock %}
+
+{% block content_block %}
+    <div id="main" style="width:100%; height:100%;"></div>
+    <script type="text/javascript">
+        // based on prepared DOM, initialize echarts instance
+        var myChart = echarts.init(document.getElementById('main'));
+        all_data = {
+            "rateme-F": [],
+            "rateme-M": []
+        };
+
+
+        function receive_data(data_key) {
+            return function (data) {
+                arr_data = convert_data(data.results, "created", "calculated_rating");
+                all_data[data_key] = all_data[data_key].concat(arr_data);
+                // fill in data
+                myChart.setOption({
+                    series: [{
+                        // find series by name
+                        name: data_key,
+                        data: all_data[data_key]
+                    }]
+                });
+
+                if (data.next) {
+                    $.get(data.next).done(receive_data(data_key));
+                }
+            }
+        }
+
+        // Asynchronous data loading
+        $.get('/api/submissions?format=json&gender=F').done(receive_data("rateme-F"));
+        $.get('/api/submissions?format=json&gender=M').done(receive_data("rateme-M"));
+
+        function convert_data(data, x_key, y_key) {
+            out = [];
+            for (i = 0; i < data.length; i++) {
+                d = data[i];
+                out.push([d[x_key], d[y_key], d]);
+            }
+            return out;
+        }
+
+        option = {
+            backgroundColor: new echarts.graphic.RadialGradient(0.3, 0.3, 0.8, [{
+                offset: 0,
+                color: '#f7f8fa'
+            }, {
+                offset: 1,
+                color: '#cdd0d5'
+            }]),
+            title: {
+                text: 'RateMe'
+            },
+            tooltip: {
+                formatter: function (params) {
+                    let data = params.data[2];
+                    let rez = '<iframe src="/submission/'+data.id+'"></iframe>';
+                    return rez;
+                },
+                alwaysShowContent:true,
+                triggerOn:'click',
+                enterable:true,
+            },
+            dataZoom: [
+                {
+                    type: 'slider',
+                    xAxisIndex: 0,
+                    start: 0,
+                    end: 100
+                },
+                {
+                    type: 'inside',
+                    xAxisIndex: 0,
+                    start: 0,
+                    end: 100
+                },
+                {
+                    type: 'slider',
+                    yAxisIndex: 0,
+                    start: 0,
+                    end: 100
+                },
+                {
+                    type: 'inside',
+                    yAxisIndex: 0,
+                    start: 0,
+                    end: 100
+                }
+            ],
+            legend: {
+                right: 10,
+                data: ['rateme-M', 'rateme-F']
+            },
+            xAxis: {
+                type: "time",
+                splitLine: {
+                    lineStyle: {
+                        type: 'dashed'
+                    }
+                },
+                formatter: function (value, index) {
+                    // Formatted to be month/day; display year only in the first label
+                    var date = new Date(value);
+                    var texts = [(date.getMonth() + 1), date.getDate()];
+                    if (idx === 0) {
+                        texts.unshift(date.getYear());
+                    }
+                    return texts.join('/');
+                }
+            },
+            yAxis: {
+                splitLine: {
+                    lineStyle: {
+                        type: 'dashed'
+                    }
+                },
+                scale: true
+            },
+            series: [{
+                name: 'rateme-M',
+                data: [],
+                type: 'scatter',
+                label: {
+                    emphasis: {
+                        show: true,
+                        formatter: function (param) {
+                            return param.data[2].title;
+                        },
+                        position: 'top'
+                    }
+                },
+                symbolSize: function (data) {
+                    return Math.sqrt(data[2].score);
+                },
+                itemStyle: {
+                    normal: {
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(25, 100, 150, 0.5)',
+                        shadowOffsetY: 5,
+                        color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [{
+                            offset: 0,
+                            color: 'rgb(129, 227, 238)'
+                        }, {
+                            offset: 1,
+                            color: 'rgb(25, 183, 207)'
+                        }])
+                    }
+                }
+            },
+                {
+                    name: 'rateme-F',
+                    data: [],
+                    type: 'scatter',
+                    label: {
+                        emphasis: {
+                            show: true,
+                            formatter: function (param) {
+                                return param.data[2].title;
+                            },
+                            position: 'top'
+                        }
+                    },
+                    symbolSize: function (data) {
+                        return Math.sqrt(data[2].score);
+                    },
+                    itemStyle: {
+                        normal: {
+                            color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [{
+                                offset: 0,
+                                color: 'rgb(255, 0, 0)'
+                            }, {
+                                offset: 1,
+                                color: 'rgb(25, 183, 207)'
+                            }])
+                        }
+                    }
+                }]
+        };
+
+        // use configuration item and data specified to show chart
+        myChart.setOption(option);
+    </script>
+{% endblock %}

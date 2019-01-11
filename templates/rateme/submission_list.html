@@ -14,8 +14,8 @@
                 <a href="http://reddit.com{{ submission.permalink }}">
                     <h1>{{ submission.gender }} | {{ submission.age }} : {{ submission.calculated_rating }}
                         / {{ submission.usable_comments.count }}</h1>
-                    <h3>{{ submission.score }}</h3><h4>{{ submission.title }}</h4>
                 </a>
+                <h3>{{ submission.author }}</h3><h4>{{ submission.title }}</h4>
             </div>
             <div class="row">
                 <div class="col-xs-8">
@@ -27,11 +27,13 @@
                                 </div>
                             {% endfor %}
                         </div>
-                        <a class="left carousel-control" href="#carouselExampleControls_{{ forloop.counter }}" data-slide="prev">
+                        <a class="left carousel-control" href="#carouselExampleControls_{{ forloop.counter }}"
+                           data-slide="prev">
                             <span class="glyphicon glyphicon-chevron-left"></span>
                             <span class="sr-only">Previous</span>
                         </a>
-                        <a class="right carousel-control" href="#carouselExampleControls_{{ forloop.counter }}" data-slide="next">
+                        <a class="right carousel-control" href="#carouselExampleControls_{{ forloop.counter }}"
+                           data-slide="next">
                             <span class="glyphicon glyphicon-chevron-right"></span>
                             <span class="sr-only">Next</span>
                         </a>

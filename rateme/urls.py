@@ -15,4 +15,9 @@ urlpatterns = [
     path(r'api/getResults', views.index, name='api_GetResults'),
 
     path(r'submissions/', views.SubmissionListView.as_view(), name='submission-list'),
+    path(r'submission/<pk>/', views.SubmissionDetailView.as_view(), name='submission-detail'),
+
+    path(r'graph/', views.graph, name='graph'),
+
+    path(r'api/submissions', views.API_SubmissionListView.as_view(), name='api-submissions')
 ]
