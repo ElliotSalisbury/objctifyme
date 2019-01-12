@@ -107,6 +107,7 @@ class FaceProcessing(models.Model):
     shape_coefficients = models.CharField(max_length=4096)
     color_coefficients = models.CharField(max_length=4096)
     expression_coefficients = models.CharField(max_length=4096)
+    texture_coefficients = models.CharField(max_length=4096, null=True)
     pitch = models.FloatField()
     yaw = models.FloatField()
     roll = models.FloatField()
