@@ -80,8 +80,14 @@ WSGI_APPLICATION = 'ratemescraper.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        # 'ENGINE': 'django.db.backends.sqlite3',
+        # 'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'rateme',
+        'USER': 'ratemeuser',
+        'PASSWORD': 'ratemepassword',
+        'HOST': 'localhost',
+        'PORT': '',
     }
 }
 
@@ -128,5 +134,5 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
 
-MEDIA_ROOT = r"C:\datasets\rateme"
+MEDIA_ROOT = r"/media/data/rateme"
 MEDIA_URL = '/media/'

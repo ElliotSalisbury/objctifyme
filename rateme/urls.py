@@ -7,8 +7,8 @@ urlpatterns = [
     path(r'about/', views.about, name='about'),
     path(r'author/', views.author, name='author'),
 
-    path(r'3D/AverageFaces', views.index, name='averageFaces'),
-    path(r'3D/morphFaces', views.index, name='morphFaces'),
+    path(r'3D/AverageFaces', views.morphFaces, name='averageFaces'),
+    path(r'3D/morphFaces', views.morphFaces, name='morphFaces'),
 
     path(r'uploadImage', views.index, name='upload'),
     path(r'api/startProcess', views.index, name='api_StartProcess'),
