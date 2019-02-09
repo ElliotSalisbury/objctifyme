@@ -29,9 +29,9 @@ def image_resize(image, max_width=512, max_height=512, inter=cv2.INTER_AREA):
     return resized
 
 
-def ensure_max_image_size(image, max_size=4096):
+def ensure_max_image_size(image, max_size=4096, inter=cv2.INTER_AREA):
     if image.shape[0] > max_size or image.shape[1] > max_size:
-        image = image_resize(image, max_width=max_size, max_height=max_size)
+        image = image_resize(image, max_width=max_size, max_height=max_size, inter=inter)
     return image
 
 

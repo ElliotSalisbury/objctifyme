@@ -13,7 +13,7 @@ django.setup()
 from django.conf import settings
 from rateme.models import Submission, SubmissionImage
 
-TEXTURE_SIZE = 1024
+TEXTURE_SIZE = 256
 MEDIA_ROOT = settings.MEDIA_ROOT
 EXPECTED_AREA = TEXTURE_SIZE * TEXTURE_SIZE
 
@@ -29,6 +29,7 @@ if __name__ == '__main__':
     for i, submission in enumerate(submissions):
         try:
             submission_dir = os.path.join(MEDIA_ROOT, submission.id)
+
             combined_texture_path = os.path.join(submission_dir, "{}_combinedtexture.jpg".format(submission.id))
             normalized_weight_path = os.path.join(submission_dir, "{}_weight.npy".format(submission.id))
 
@@ -40,7 +41,7 @@ if __name__ == '__main__':
             images = submission.images.all()
 
             combined_texture = np.zeros((TEXTURE_SIZE, TEXTURE_SIZE, 3), dtype=np.float)
-            total_weight = np.zeros((TEXTURE_SIZE, TEXTURE_SIZE, 3), dtype=np.float) + 0.00001
+            total_weight = np.zeros((TEXTURE_SIZE, TEXTURE_SIZE, 1), dtype=np.float) + 0.00001
             processing_count = 0
             for image in images:
                 face_processings = image.face_processings.all()
@@ -49,17 +50,17 @@ if __name__ == '__main__':
                     im_path = os.path.join(MEDIA_ROOT, relative_im_path)
                     texture = cv2.imread(im_path)
 
+                    relative_mask_path = processing.texture.name.replace("texture.jpg", "texture_mask.jpg")
+                    mask_path = os.path.join(MEDIA_ROOT, relative_mask_path)
+                    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+
                     tex_area = texture.shape[0] * texture.shape[1]
                     area_weight = min(1.0, tex_area / EXPECTED_AREA)
 
-                    mask = np.zeros_like(texture)
-                    mask[np.where(
-                        np.logical_and(np.logical_and(texture[:, :, 0] > 0, texture[:, :, 1] > 0),
-                                       texture[:, :, 2] > 0))] = (
-                        1, 1, 1)
-
                     texture = cv2.resize(texture, (TEXTURE_SIZE, TEXTURE_SIZE), interpolation=cv2.INTER_LINEAR)
                     mask = cv2.resize(mask, (TEXTURE_SIZE, TEXTURE_SIZE), interpolation=cv2.INTER_NEAREST)
+                    mask = np.expand_dims(mask, 2)
+                    mask = mask / 255.0
 
                     yscale = 1 - abs(processing.yaw * 2)
                     pscale = 1  # 1-abs(processing.pitch*2)

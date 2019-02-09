@@ -230,6 +230,21 @@ def extract_facial_features():
 
                 # get the location of the face in the image
                 rects = detector(image_resized, 1)
+                missing_mask = False
+                for face_id, rect in enumerate(rects):
+                    file_type = os.path.splitext(im_path)[1]
+                    relative_texture_mask_path = relative_im_path.replace(file_type,
+                                                                          "_face{}_texture_mask.jpg".format(face_id))
+                    texture_mask_path = os.path.join(MEDIA_ROOT, relative_texture_mask_path)
+                    if not os.path.exists(texture_mask_path):
+                        missing_mask = True
+                        break
+
+                if missing_mask == False:
+                    continue
+                else:
+                    submissionimage.face_processings.all().delete()
+
                 for face_id, rect in enumerate(rects):
                     try:
                         rect_resized = rect
@@ -280,6 +295,10 @@ def extract_facial_features():
                                                                          "_face{}_texture.jpg".format(face_id))
                         texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
                         cv2.imwrite(texture_path, texture[:, :, :3])
+                        relative_texture_mask_path = relative_im_path.replace(file_type,
+                                                                         "_face{}_texture_mask.jpg".format(face_id))
+                        texture_mask_path = os.path.join(MEDIA_ROOT, relative_texture_mask_path)
+                        cv2.imwrite(texture_mask_path, texture[:, :, 3])
 
                         imgprocessing = FaceProcessing(image=submissionimage,
                                                        texture=relative_texture_path,
