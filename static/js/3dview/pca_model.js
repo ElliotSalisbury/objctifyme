@@ -19,58 +19,15 @@ IS_PCA_INITIALIZED = false;
 function PCAModelInit(modelsrc, imsrc) {
     if (!IS_PCA_INITIALIZED) {
         IS_PCA_INITIALIZED=true;
-        
+
         //download the model
         downloadMsgPack(modelsrc, modelReady);
-        
-        //get the canvas object
-        canvas = document.getElementById("warpCanvas");
-        origImage = document.getElementById("origImage");
-        ctx = canvas.getContext("2d");
-        
-        //set the onload function of the orig image
-        img.onload = function(){
-            console.log("img downloaded");
-            initializeImgWarper();
-        };
 
         //intialize the 3d rendering code
         init3d();
         animate();
-        
-        //initialize the controls
-        $("#showlandmarks").change(function() {
-            showLandmarks = !showLandmarks;
-            updatemesh();
-        });
-        $("#showgrid").change(function() {
-            imgWarper.toggleGrid();
-            updatemesh();
-        });
-        resetCoeffs();
-        $("#coeffGender").change(function() {
-            updatemesh();
-        });
-        $("#coeffAge").change(function() {
-            updatemesh();
-        });
-        $("#coeffWeight").change(function() {
-            updatemesh();
-        });
-        $("#coeffHeight").change(function() {
-            updatemesh();
-        });
-        $("#default").click(function() {
-            $("#suggested").prop('checked', false);
-            resetCoeffs();
-            updatemesh();
-        });
-        $("#suggested").click(function() {
-            resetCoeffs();
-            updatemesh();
-        });
     }
-    
+
     //reset the render params
     modelview = undefined;
     projection = undefined;
@@ -78,7 +35,7 @@ function PCAModelInit(modelsrc, imsrc) {
     indexs = undefined;
     face_features = undefined;
     new_face_features = undefined;
-    
+
     img.src = imsrc;
 }
 
@@ -86,7 +43,7 @@ var STARTED_DOWNLOADED = false;
 function downloadMsgPack(url, callback) {
     if (!STARTED_DOWNLOADED) {
         STARTED_DOWNLOADED = true;
-        
+
         var oReq = new XMLHttpRequest();
         oReq.open("GET", url, true);
         oReq.responseType = "arraybuffer";
@@ -114,12 +71,11 @@ function setRenderParams(mv, p, v, i, ff, nff) {
     projection = p;
     viewport = v;
     indexs = i;
-    
+
     face_features = ff;
     new_face_features = nff;
 
     $("#suggested").prop('checked', false);
-    resetCoeffs();
     console.log("rendering params received");
     createOrigMesh();
 }
@@ -128,127 +84,23 @@ function createOrigMesh() {
     if (model && modelview) {
         var meshverts = meshFromFeatures(model, face_features).valueOf();
         createMesh(meshverts, model.faces, model.UVs);
-
-        origverts = getQuickVerts(meshverts, indexs);
-
-        console.log("created original mesh + img points");
-        initializeImgWarper();
     }
-}
-
-function initializeImgWarper() {
-    if(model && modelview && img.complete) {
-        origpoints = [];
-        origpoints.push(new ImgWarper.Point(0,0));
-        origpoints.push(new ImgWarper.Point(0,img.height));
-        origpoints.push(new ImgWarper.Point(img.width,img.height));
-        origpoints.push(new ImgWarper.Point(img.width,0));
-        for (i in origverts) {
-            var vert = origverts[i];
-            var vert4 = [vert[0], vert[1], vert[2], 1];
-            var vert2d = project(vert4, modelview, projection, viewport).valueOf();
-            origpoints.push(new ImgWarper.Point(vert2d[0],vert2d[1]));
-        }
-
-        console.log("initialized img warper");
-        imgWarper = new ImgWarper.Warper(canvas, img);
-    }
-}
-
-function project(vert, modelview, projection, viewport) {
-    var tmp = math.multiply(modelview, vert);
-    tmp = math.multiply(projection,tmp);
-
-    tmp = math.divide(tmp,tmp.valueOf()[3]);
-    tmp = math.add(math.multiply(tmp,0.5),0.5);
-    tmp = tmp.valueOf();
-    tmp[0] = tmp[0] * viewport[2] + viewport[0];
-    tmp[1] = tmp[1] * viewport[3] + viewport[1];
-
-    return math.matrix([tmp[0],tmp[1]]);
 }
 
 function meshFromFeatures(model, features) {
     alpha = math.matrix(features);
-    var shape = math.multiply(model.shapePC, alpha);
-    shape = math.add(model.shapeMU, shape);
+    var shape = math.multiply(model.shape.PC, alpha);
+    shape = math.add(model.shape.MU, shape);
     var numVert = parseInt(shape._size[0]/3);
     var verts = shape.reshape([numVert,3]);
 
     return verts;
 }
 
-function getQuickVerts(verts, indexs) {
-    var quickverts = [];
-    for (var i in indexs) {
-        var index = indexs[i];
-        quickverts.push(verts[index]);
-    }
-    return quickverts;
-}
-
-function drawLandmarks(landmarks, color) {
-    for (i in landmarks) {
-        var vert = landmarks[i];
-        var vert4 = [vert[0], vert[1], vert[2], 1];
-        var vert2d = project(vert4, modelview, projection, viewport).valueOf();
-
-        var radius = 10;
-        ctx.beginPath();
-        ctx.arc(vert2d[0], vert2d[1], radius, 0, 2 * Math.PI, false);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = '#003300';
-        ctx.stroke();
-
-    }
-}
 
 function updatemesh() {
     //recalculate mesh
-    if ($("#suggested").is(':checked')) {
-        var calc_face_features = math.matrix(new_face_features.slice());
-    }else {
-        var calc_face_features = math.matrix(face_features.slice());
-    }
-    var new_gender_features = math.multiply(gender_features, $("#coeffGender").val()*2);
-    var new_age_features = math.multiply(age_features, $("#coeffAge").val()*50);
-    var new_weight_features = math.multiply(weight_features, $("#coeffWeight").val()*40);
-    var new_height_features = math.multiply(height_features, $("#coeffHeight").val()*40);
-
-    calc_face_features = math.add(calc_face_features, new_gender_features);
-    calc_face_features = math.add(calc_face_features, new_age_features);
-    calc_face_features = math.add(calc_face_features, new_weight_features);
-    calc_face_features = math.add(calc_face_features, new_height_features);
-
+    var calc_face_features = math.matrix(face_features.slice());
     var meshverts = meshFromFeatures(model, calc_face_features.valueOf()).valueOf();
     updateMesh(meshverts);
-
-    var quickverts = getQuickVerts(meshverts, indexs);
-
-    //warp image
-    points = [];
-    points.push(new ImgWarper.Point(0,0));
-    points.push(new ImgWarper.Point(0,img.height));
-    points.push(new ImgWarper.Point(img.width,img.height));
-    points.push(new ImgWarper.Point(img.width,0));
-    for (i in quickverts) {
-        var vert = quickverts[i];
-        var vert4 = [vert[0], vert[1], vert[2], 1];
-        var vert2d = project(vert4, modelview, projection, viewport).valueOf();
-        points.push(new ImgWarper.Point(vert2d[0],vert2d[1]));
-    }
-    imgWarper.warp(origpoints, points);
-    if (showLandmarks) {
-        drawLandmarks(origverts, "green");
-        drawLandmarks(quickverts, "red");
-    }
-}
-
-function resetCoeffs() {
-    $("#coeffGender").val(0);
-    $("#coeffAge").val(0);
-    $("#coeffWeight").val(0);
-    $("#coeffHeight").val(0);
 }

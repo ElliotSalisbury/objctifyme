@@ -8,25 +8,11 @@
 {% endblock %}
 
 {% block content_block %}
-    {% if is_paginated %}
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-                <li>
-                    <span><a href="?page={{ page_obj.previous_page_number }}">Previous</a></span>
-                </li>
-            {% endif %}
-            <li class="">
-                <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.</span>
-            </li>
-            {% if page_obj.has_next %}
-                <li>
-                    <span><a href="?page={{ page_obj.next_page_number }}">Next</a></span>
-                </li>
-            {% endif %}
-        </ul>
-    {% endif %}
+    <h1>{{ object.pk }}</h1>
 
-    {% for submission in object_list %}
+    <hr>
+    <h2>Submissions:</h2>
+    {% for submission in object.submissions.all %}
         <div class="row">
             <div class="row">
                 <a href="http://reddit.com{{ submission.permalink }}">
@@ -73,22 +59,16 @@
     {% empty %}
         <p>No submissions yet.</p>
     {% endfor %}
+    <hr>
+    <h2>Comments:</h2>
+    {% for comment in object.comments.all %}
+        <span>
+            <a href="{% url 'submission-detail' comment.submission.pk %}">{{ comment.submission.title }}</a>
+            | {{ comment.rating }}
+        </span>
+        <p>{{ comment.body }}</p>
+    {% empty %}
+        <p>No comments yet.</p>
+    {% endfor %}
 
-    {% if is_paginated %}
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-                <li>
-                    <span><a href="?page={{ page_obj.previous_page_number }}">Previous</a></span>
-                </li>
-            {% endif %}
-            <li class="">
-                <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.</span>
-            </li>
-            {% if page_obj.has_next %}
-                <li>
-                    <span><a href="?page={{ page_obj.next_page_number }}">Next</a></span>
-                </li>
-            {% endif %}
-        </ul>
-    {% endif %}
 {% endblock %}

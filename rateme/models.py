@@ -28,6 +28,9 @@ class User(models.Model):
 
 
 class Submission(models.Model):
+    class Meta:
+        ordering = ['-created']
+
     id = models.CharField(max_length=256, primary_key=True)
     title = models.CharField(max_length=256)
     has_images = models.BooleanField()

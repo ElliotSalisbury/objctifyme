@@ -5,7 +5,7 @@ from django.views.generic.list import ListView
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 
-from rateme.models import Submission
+from rateme.models import Submission, User
 from rateme.serializers import SubmissionSerializer
 
 
@@ -32,10 +32,10 @@ def morphFaces(request):
 class SubmissionListView(ListView):
     model = Submission
 
-    # paginate_by = 100  # if pagination is desired
+    paginate_by = 100
 
     def get_queryset(self):
-        return Submission.objects.filter(has_images=True, calculated_rating__isnull=False) \
+        return Submission.objects.filter(has_images=True, calculated_rating__isnull=False, gender='F') \
             .annotate(usable_comments_count=Count("comments", filter=Q(comments__rating__isnull=False))) \
             .filter(usable_comments_count__gte=10) \
             .order_by("-calculated_rating")
@@ -49,6 +49,9 @@ class SubmissionDetailView(DetailView):
     #     context = super().get_context_data(**kwargs)
     #     context['now'] = timezone.now()
     #     return context
+
+class AuthorDetailView(DetailView):
+    model = User
 
 
 class StandardResultsSetPagination(PageNumberPagination):
