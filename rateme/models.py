@@ -88,14 +88,14 @@ class Submission(models.Model):
 
 class SubmissionImage(models.Model):
     submission = models.ForeignKey("Submission", on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField()
+    image = models.ImageField(max_length=4096)
     face_count = models.IntegerField()
 
 
 class ImageProcessing(models.Model):
     image = models.OneToOneField("SubmissionImage", on_delete=models.CASCADE, primary_key=True,
                                  related_name="processing")
-    texture = models.ImageField()
+    texture = models.ImageField(max_length=4096)
     shape_coefficients = models.CharField(max_length=4096)
     color_coefficients = models.CharField(max_length=4096)
     expression_coefficients = models.CharField(max_length=4096)
@@ -106,7 +106,7 @@ class ImageProcessing(models.Model):
 
 class FaceProcessing(models.Model):
     image = models.ForeignKey("SubmissionImage", on_delete=models.CASCADE, related_name="face_processings")
-    texture = models.ImageField()
+    texture = models.ImageField(max_length=4096)
     shape_coefficients = models.CharField(max_length=4096)
     color_coefficients = models.CharField(max_length=4096)
     expression_coefficients = models.CharField(max_length=4096)

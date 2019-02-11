@@ -56,6 +56,71 @@ MAX_ALIGN_ATTEMPTS = 10
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor(DLIB_SHAPEPREDICTOR_PATH)
 
+# set up the network
+x = tf.placeholder(tf.float32, [FLAGS.batch_size, None, None, 3])
+
+###################
+# Shape CNN
+###################
+x2 = tf.image.resize_bilinear(x, tf.constant([224, 224], dtype=tf.int32))
+x2 = tf.cast(x2, 'float32')
+x2 = tf.reshape(x2, [FLAGS.batch_size, 224, 224, 3])
+
+# Image normalization
+mean = tf.reshape(mean_image_shape, [1, 224, 224, 3])
+mean = tf.cast(mean, 'float32')
+x2 = x2 - mean
+
+with tf.variable_scope('shapeCNN'):
+    net_shape = resnet101_shape({'input': x2}, trainable=False)
+    pool5 = net_shape.layers['pool5']
+    pool5 = tf.squeeze(pool5)
+    pool5 = tf.reshape(pool5, [FLAGS.batch_size, -1])
+
+    npzfile = np.load('./processing/ResNet/ShapeNet_fc_weights.npz', fix_imports=True, encoding='bytes')
+    ini_weights_shape = npzfile['ini_weights_shape']
+    ini_biases_shape = npzfile['ini_biases_shape']
+    with tf.variable_scope('shapeCNN_fc1'):
+        fc1ws = tf.Variable(tf.reshape(ini_weights_shape, [2048, -1]), trainable=False, name='weights')
+        fc1bs = tf.Variable(tf.reshape(ini_biases_shape, [-1]), trainable=False, name='biases')
+        fc1ls = tf.nn.bias_add(tf.matmul(pool5, fc1ws), fc1bs)
+
+###################
+# Expression CNN
+###################
+with tf.variable_scope('exprCNN'):
+    net_expr = resnet101_expr({'input': x2}, trainable=True)
+    pool5 = net_expr.layers['pool5']
+    pool5 = tf.squeeze(pool5)
+    pool5 = tf.reshape(pool5, [FLAGS.batch_size, -1])
+
+    npzfile = np.load('./processing/ResNet/ExpNet_fc_weights.npz', fix_imports=True, encoding='bytes')
+    ini_weights_expr = npzfile['ini_weights_expr']
+    ini_biases_expr = npzfile['ini_biases_expr']
+    with tf.variable_scope('exprCNN_fc1'):
+        fc1we = tf.Variable(tf.reshape(ini_weights_expr, [2048, 29]), trainable=True, name='weights')
+        fc1be = tf.Variable(tf.reshape(ini_biases_expr, [29]), trainable=True, name='biases')
+        fc1le = tf.nn.bias_add(tf.matmul(pool5, fc1we), fc1be)
+
+# Add ops to save and restore all the variables.
+init_op = tf.global_variables_initializer()
+all_saver = tf.train.Saver(var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='shapeCNN'))
+saver_ini_shape_net = tf.train.Saver(
+    var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='shapeCNN'))
+saver_ini_expr_net = tf.train.Saver(var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='exprCNN'))
+
+sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+sess.run(init_op)
+
+# load 3dmm shape and texture model from Tran et al.' CVPR2017
+load_path = "./processing/Shape_Model/ini_ShapeTextureNet_model.ckpt"
+saver_ini_shape_net.restore(sess, load_path)
+
+# load our expression net model
+load_path = "./processing/Expression_Model/ini_exprNet_model.ckpt"
+saver_ini_expr_net.restore(sess, load_path)
+
+
 
 def rotated_rect_from_landmarks(landmarks, M, im):
     rotated_rect_ps = np.array([(np.matrix(M) * np.append(p, 1)[:, np.newaxis]) for p in landmarks],
@@ -144,175 +209,111 @@ def preprocess_image(im, rect=None, guess_rect=None):
 
 
 def extract_facial_features():
-    # set up the network
-    x = tf.placeholder(tf.float32, [FLAGS.batch_size, None, None, 3])
+    images_to_process = SubmissionImage.objects.all() \
+        .annotate(face_processing_count=Count("face_processings")) \
+        .filter(face_processing_count__lt=F("face_count"))
+    images_to_process_len = len(images_to_process)
 
-    ###################
-    # Shape CNN
-    ###################
-    x2 = tf.image.resize_bilinear(x, tf.constant([224, 224], dtype=tf.int32))
-    x2 = tf.cast(x2, 'float32')
-    x2 = tf.reshape(x2, [FLAGS.batch_size, 224, 224, 3])
+    for sub_i, submissionimage in enumerate(images_to_process):
+        try:
+            relative_im_path = submissionimage.image.name
+            im_path = os.path.join(MEDIA_ROOT, relative_im_path)
 
-    # Image normalization
-    mean = tf.reshape(mean_image_shape, [1, 224, 224, 3])
-    mean = tf.cast(mean, 'float32')
-    x2 = x2 - mean
+            print("{}/{}: {}".format(sub_i, images_to_process_len, im_path))
 
-    with tf.variable_scope('shapeCNN'):
-        net_shape = resnet101_shape({'input': x2}, trainable=False)
-        pool5 = net_shape.layers['pool5']
-        pool5 = tf.squeeze(pool5)
-        pool5 = tf.reshape(pool5, [FLAGS.batch_size, -1])
+            # load the image and resize it to something reasonable
+            image_orig_full = cv2.imread(im_path)
+            image_orig = ensure_max_image_size(image_orig_full)
+            image_resized = image_resize(image_orig_full)
 
-        npzfile = np.load('./processing/ResNet/ShapeNet_fc_weights.npz', fix_imports=True, encoding='bytes')
-        ini_weights_shape = npzfile['ini_weights_shape']
-        ini_biases_shape = npzfile['ini_biases_shape']
-        with tf.variable_scope('shapeCNN_fc1'):
-            fc1ws = tf.Variable(tf.reshape(ini_weights_shape, [2048, -1]), trainable=False, name='weights')
-            fc1bs = tf.Variable(tf.reshape(ini_biases_shape, [-1]), trainable=False, name='biases')
-            fc1ls = tf.nn.bias_add(tf.matmul(pool5, fc1ws), fc1bs)
+            h_scale = image_orig.shape[0] / image_resized.shape[0]
+            w_scale = image_orig.shape[1] / image_resized.shape[1]
 
-    ###################
-    # Expression CNN
-    ###################
-    with tf.variable_scope('exprCNN'):
-        net_expr = resnet101_expr({'input': x2}, trainable=True)
-        pool5 = net_expr.layers['pool5']
-        pool5 = tf.squeeze(pool5)
-        pool5 = tf.reshape(pool5, [FLAGS.batch_size, -1])
+            # get the location of the face in the image
+            rects = detector(image_resized, 1)
+            missing_mask = False
+            for face_id, rect in enumerate(rects):
+                file_type = os.path.splitext(im_path)[1]
+                relative_texture_mask_path = relative_im_path.replace(file_type,
+                                                                      "_face{}_texture_mask.jpg".format(face_id))
+                texture_mask_path = os.path.join(MEDIA_ROOT, relative_texture_mask_path)
+                if not os.path.exists(texture_mask_path):
+                    missing_mask = True
+                    break
 
-        npzfile = np.load('./processing/ResNet/ExpNet_fc_weights.npz', fix_imports=True, encoding='bytes')
-        ini_weights_expr = npzfile['ini_weights_expr']
-        ini_biases_expr = npzfile['ini_biases_expr']
-        with tf.variable_scope('exprCNN_fc1'):
-            fc1we = tf.Variable(tf.reshape(ini_weights_expr, [2048, 29]), trainable=True, name='weights')
-            fc1be = tf.Variable(tf.reshape(ini_biases_expr, [29]), trainable=True, name='biases')
-            fc1le = tf.nn.bias_add(tf.matmul(pool5, fc1we), fc1be)
+            if missing_mask == False:
+                continue
+            else:
+                submissionimage.face_processings.all().delete()
 
-    # Add ops to save and restore all the variables.
-    init_op = tf.global_variables_initializer()
-    all_saver = tf.train.Saver(var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='shapeCNN'))
-    saver_ini_shape_net = tf.train.Saver(
-        var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='shapeCNN'))
-    saver_ini_expr_net = tf.train.Saver(var_list=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='exprCNN'))
+            for face_id, rect in enumerate(rects):
+                try:
+                    rect_resized = rect
+                    rect_orig = dlib.rectangle(
+                        left=int(math.floor(rect_resized.left() * w_scale)),
+                        top=int(math.floor(rect_resized.top() * h_scale)),
+                        right=int(math.ceil(rect_resized.right() * w_scale)),
+                        bottom=int(math.ceil(rect_resized.bottom() * h_scale)))
 
-    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        sess.run(init_op)
+                    # align the image so that the face is vertical
+                    image_rotated, M, invM, rotated_rect = align_face_vertical(image_orig, rect_orig)
+                    face_im, rect_rotated = preprocess_image(image_rotated, rect=None, guess_rect=rotated_rect)
 
-        # load 3dmm shape and texture model from Tran et al.' CVPR2017
-        load_path = "./processing/Shape_Model/ini_ShapeTextureNet_model.ckpt"
-        saver_ini_shape_net.restore(sess, load_path)
+                    print("\trunning shape and expression networks")
+                    image = np.asarray(face_im)
+                    image = np.reshape(image, [1, FLAGS.image_size, FLAGS.image_size, 3])
+                    Shape_Color_orig, Expr = sess.run([fc1ls, fc1le], feed_dict={x: image})
+                    Shape_Color_orig = np.reshape(Shape_Color_orig, [-1])
+                    expr = np.reshape(Expr, [-1])
 
-        # load our expression net model
-        load_path = "./processing/Expression_Model/ini_exprNet_model.ckpt"
-        saver_ini_expr_net.restore(sess, load_path)
+                    shape = Shape_Color_orig[0:99]
+                    color = Shape_Color_orig[99:]
 
-        images_to_process = SubmissionImage.objects.all() \
-            .annotate(face_processing_count=Count("face_processings")) \
-            .filter(face_processing_count__lt=F("face_count"))
-        images_to_process_len = len(images_to_process)
+                    print("\tconverting to eos structures")
+                    landmarks_rot = getLandmarks(image_rotated, rect_rotated)
+                    landmarks_cor = np.array(
+                        [(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
+                        dtype=np.int).squeeze()
+                    # landmarks_cor_large = np.array([[p[0] * w_scale, p[1] * h_scale] for p in landmarks_cor], dtype=np.int)
 
-        for sub_i, submissionimage in enumerate(images_to_process):
-            try:
-                relative_im_path = submissionimage.image.name
-                im_path = os.path.join(MEDIA_ROOT, relative_im_path)
+                    mesh_orig = BFM_FACEFITTING.getMeshFromShapeCeoffs(shape, expr, color)
+                    pose_orig = BFM_FACEFITTING.getPoseFromMesh(landmarks_cor, mesh_orig, image_orig)
 
-                print("{}/{}: {}".format(sub_i, images_to_process_len, im_path))
+                    print("\textracting mesh texture")
+                    max_side = np.max(np.max(landmarks_cor, axis=0) - np.min(landmarks_cor, axis=0)) * 2
+                    texture = BFM_FACEFITTING.getTextureFromMesh(image_orig, mesh_orig, pose_orig,
+                                                                 texture_size=int(max_side))
 
-                # load the image and resize it to something reasonable
-                image_orig_full = cv2.imread(im_path)
-                image_orig = ensure_max_image_size(image_orig_full)
-                image_resized = image_resize(image_orig_full)
+                    # save the shape, color, texture, expression to the database
+                    print("\tsaving to db")
+                    shape_str = json.dumps(shape.tolist())
+                    color_str = json.dumps(color.tolist())
+                    expr_str = json.dumps(expr.tolist())
+                    pitch, yaw, roll = pose_orig.get_rotation_euler_angles()
 
-                h_scale = image_orig.shape[0] / image_resized.shape[0]
-                w_scale = image_orig.shape[1] / image_resized.shape[1]
-
-                # get the location of the face in the image
-                rects = detector(image_resized, 1)
-                missing_mask = False
-                for face_id, rect in enumerate(rects):
                     file_type = os.path.splitext(im_path)[1]
+                    relative_texture_path = relative_im_path.replace(file_type,
+                                                                     "_face{}_texture.jpg".format(face_id))
+                    texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
+                    cv2.imwrite(texture_path, texture[:, :, :3])
                     relative_texture_mask_path = relative_im_path.replace(file_type,
-                                                                          "_face{}_texture_mask.jpg".format(face_id))
+                                                                     "_face{}_texture_mask.jpg".format(face_id))
                     texture_mask_path = os.path.join(MEDIA_ROOT, relative_texture_mask_path)
-                    if not os.path.exists(texture_mask_path):
-                        missing_mask = True
-                        break
+                    cv2.imwrite(texture_mask_path, texture[:, :, 3])
 
-                if missing_mask == False:
-                    continue
-                else:
-                    submissionimage.face_processings.all().delete()
-
-                for face_id, rect in enumerate(rects):
-                    try:
-                        rect_resized = rect
-                        rect_orig = dlib.rectangle(
-                            left=int(math.floor(rect_resized.left() * w_scale)),
-                            top=int(math.floor(rect_resized.top() * h_scale)),
-                            right=int(math.ceil(rect_resized.right() * w_scale)),
-                            bottom=int(math.ceil(rect_resized.bottom() * h_scale)))
-
-                        # align the image so that the face is vertical
-                        image_rotated, M, invM, rotated_rect = align_face_vertical(image_orig, rect_orig)
-                        face_im, rect_rotated = preprocess_image(image_rotated, rect=None, guess_rect=rotated_rect)
-
-                        print("\trunning shape and expression networks")
-                        image = np.asarray(face_im)
-                        image = np.reshape(image, [1, FLAGS.image_size, FLAGS.image_size, 3])
-                        Shape_Color_orig, Expr = sess.run([fc1ls, fc1le], feed_dict={x: image})
-                        Shape_Color_orig = np.reshape(Shape_Color_orig, [-1])
-                        expr = np.reshape(Expr, [-1])
-
-                        shape = Shape_Color_orig[0:99]
-                        color = Shape_Color_orig[99:]
-
-                        print("\tconverting to eos structures")
-                        landmarks_rot = getLandmarks(image_rotated, rect_rotated)
-                        landmarks_cor = np.array(
-                            [(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
-                            dtype=np.int).squeeze()
-                        # landmarks_cor_large = np.array([[p[0] * w_scale, p[1] * h_scale] for p in landmarks_cor], dtype=np.int)
-
-                        mesh_orig = BFM_FACEFITTING.getMeshFromShapeCeoffs(shape, expr, color)
-                        pose_orig = BFM_FACEFITTING.getPoseFromMesh(landmarks_cor, mesh_orig, image_orig)
-
-                        print("\textracting mesh texture")
-                        max_side = np.max(np.max(landmarks_cor, axis=0) - np.min(landmarks_cor, axis=0)) * 2
-                        texture = BFM_FACEFITTING.getTextureFromMesh(image_orig, mesh_orig, pose_orig,
-                                                                     texture_size=int(max_side))
-
-                        # save the shape, color, texture, expression to the database
-                        print("\tsaving to db")
-                        shape_str = json.dumps(shape.tolist())
-                        color_str = json.dumps(color.tolist())
-                        expr_str = json.dumps(expr.tolist())
-                        pitch, yaw, roll = pose_orig.get_rotation_euler_angles()
-
-                        file_type = os.path.splitext(im_path)[1]
-                        relative_texture_path = relative_im_path.replace(file_type,
-                                                                         "_face{}_texture.jpg".format(face_id))
-                        texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
-                        cv2.imwrite(texture_path, texture[:, :, :3])
-                        relative_texture_mask_path = relative_im_path.replace(file_type,
-                                                                         "_face{}_texture_mask.jpg".format(face_id))
-                        texture_mask_path = os.path.join(MEDIA_ROOT, relative_texture_mask_path)
-                        cv2.imwrite(texture_mask_path, texture[:, :, 3])
-
-                        imgprocessing = FaceProcessing(image=submissionimage,
-                                                       texture=relative_texture_path,
-                                                       shape_coefficients=shape_str,
-                                                       color_coefficients=color_str,
-                                                       expression_coefficients=expr_str,
-                                                       pitch=pitch,
-                                                       yaw=yaw,
-                                                       roll=roll)
-                        imgprocessing.save()
-                    except Exception as e:
-                        traceback.print_exc()
-            except Exception as e:
-                traceback.print_exc()
+                    imgprocessing = FaceProcessing(image=submissionimage,
+                                                   texture=relative_texture_path,
+                                                   shape_coefficients=shape_str,
+                                                   color_coefficients=color_str,
+                                                   expression_coefficients=expr_str,
+                                                   pitch=pitch,
+                                                   yaw=yaw,
+                                                   roll=roll)
+                    imgprocessing.save()
+                except Exception as e:
+                    traceback.print_exc()
+        except Exception as e:
+            traceback.print_exc()
 
 
 def main(_):
