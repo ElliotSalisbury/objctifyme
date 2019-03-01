@@ -13,6 +13,7 @@ class User(models.Model):
     def __str__(self):
         return self.id
 
+    @property
     def get_mean_std(self):
         ratings = []
         for comment in self.comments.filter(rating__isnull=False):

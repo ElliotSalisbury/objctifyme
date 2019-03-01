@@ -1,0 +1,15 @@
+Django==2.1.7
+gunicorn==19.9.0
+psycopg2==2.7.7
+redis==3.2.0
+celery==4.2.1
+django-ipware==2.1.0
+
+dlib==19.16.0
+matplotlib==3.0.2
+numpy==1.16.1
+pandas==0.24.1
+Pillow==5.4.1
+scikit-image==0.14.2
+scikit-learn==0.20.2
+scipy==1.1.0

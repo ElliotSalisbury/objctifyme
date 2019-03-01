@@ -1,0 +1,60 @@
+web:
+  restart: always
+  build: ./web
+  expose:
+    - "8000"
+  links:
+    - postgres:postgres
+    - redis:redis
+  volumes:
+    - C:\Users\ellio\PycharmProjects\FaceSwap\DockerEnvironment\web\FaceSwapApp:/usr/src/app/FaceSwapApp
+    - C:\Users\ellio\PycharmProjects\FaceSwap\DockerEnvironment\web\django_server:/usr/src/app/django_server
+    - C:\Users\ellio\PycharmProjects\FaceSwap\DockerEnvironment\web\static:/usr/src/app/static
+    - C:\Users\ellio\PycharmProjects\circlelines\Beautifier:/usr/src/app/Beautifier
+    - C:\Users\ellio\PycharmProjects\circlelines\US10k:/usr/src/app/US10k
+    - C:\Users\ellio\PycharmProjects\circlelines\RateMe:/usr/src/app/RateMe
+    - /usr/src/app
+    - /uploads
+  env_file: .env
+  environment:
+    DEBUG: 'true'
+  command: /usr/local/bin/gunicorn django_server.wsgi:application -w 2 -b :8000 --reload
+
+celeryworker:
+  restart: always
+  build: ./web
+  links:
+    - postgres:postgres
+    - redis:redis
+  volumes_from:
+    - web
+  env_file: .env
+  command: celery -A django_server worker --loglevel=INFO --concurrency=1 -n worker1.%h
+
+nginx:
+  restart: always
+  build: ./nginx/
+  ports:
+    - "80:80"
+  volumes:
+    - /www/static
+  volumes_from:
+    - web
+  links:
+    - web:web
+
+postgres:
+  restart: always
+  image: postgres:latest
+  ports:
+    - "5432:5432"
+  volumes:
+    - pgdata:/var/lib/postgresql/data/
+
+redis:
+  restart: always
+  image: redis:latest
+  ports:
+    - "6379:6379"
+  volumes:
+    - redisdata:/data

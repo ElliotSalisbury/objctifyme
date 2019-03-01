@@ -175,7 +175,7 @@ def download_photos(imgur, submission):
     return dstPath, filepaths
 
 
-def parse_submission(imgur, submission):
+def parse_submission(imgur, submission, process_images=True):
     age, gender = parse_title(submission.title)
 
     # check if we have this submission in our db
@@ -214,7 +214,8 @@ def parse_submission(imgur, submission):
             image.save()
 
         # process those images
-        extract_facial_features()
+        if process_images:
+            extract_facial_features()
 
     return db_submission
 
@@ -270,7 +271,7 @@ def scrape():
 
     for submission in subreddit.hot(limit=1000):
         try:
-            db_submission = parse_submission(imgur, submission)
+            db_submission = parse_submission(imgur, submission, process_images=False)
 
             # parse the comments in that submission
             for top_level_comment in submission.comments:
@@ -290,7 +291,7 @@ def scrape():
         try:
             submission = comment.submission
 
-            db_submission = parse_submission(imgur, submission)
+            db_submission = parse_submission(imgur, submission, process_images=True)
 
             # parse the comments in that submission
             for top_level_comment in submission.comments:

@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 from processing.Beautifier.warpFace import warpFace, warpTriangle
+from processing.Beautifier.face3D.opengl import render_mesh
 # from opengltests2 import render_mesh
 
 MOUTH_POINTS = list(range(48, 61))
@@ -148,9 +149,6 @@ def getColorDelta(im, oldMesh, newMesh, pose):
 
     newMesh.colors = new_colors
     im_new = render_mesh(im, newMesh, pose)
-
-    cv2.imshow("old", im_old)
-    cv2.imshow("new", im_new)
 
     delta = im_new.astype(np.float64) - im_old.astype(np.float64)
 

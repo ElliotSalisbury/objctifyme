@@ -5,6 +5,7 @@
 {% block head_block %}
     <script type="text/javascript" src="{% static 'js/jquery-1.11.1.min.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/bootstrap.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/echarts.min.js' %}"></script>
 {% endblock %}
 
 {% block content_block %}
@@ -46,11 +47,140 @@
                     </div>
                 </div>
                 <div class="col-xs-4">
-                    <div style="height:150px; overflow-y:scroll">
-                        {% for comment in submission.usable_comments.all %}
-                            <span>{{ comment.rating }}</span>
-                            <p>{{ comment.body }}</p>
-                        {% endfor %}
+                    <div class="row">
+                        <div style="height:150px; overflow-y:scroll">
+                            {% for comment in submission.usable_comments.all %}
+                                <span>{{ comment.rating }}</span>
+                                <p>{{ comment.body }}</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <script type="text/javascript">
+                            function norm_y(x, mean, std) {
+                                return Math.exp((-0.5) * Math.pow((x - mean) / std, 2));
+                            }
+
+                            $(function () {
+                                var worker_normals = [
+                                    {% for comment in submission.usable_comments.all %}
+                                        [{{ comment.author.get_mean_std.0 }}, {{ comment.author.get_mean_std.1 }}, "{{ comment.author_id }}", {{ comment.rating }}],
+                                    {% endfor %}
+                                ];
+
+                                var unnorm_series = [];
+                                var norm_series = [];
+                                var unnorm_avg = 0;
+                                var norm_avg = 0;
+                                for (var i = 0; i < worker_normals.length; i++) {
+                                    var mean = worker_normals[i][0];
+                                    var std = worker_normals[i][1];
+                                    var name = worker_normals[i][2];
+                                    var rating = worker_normals[i][3];
+
+                                    var data = [];
+                                    for (var x = 0; x <= 10; x += 0.5) {
+                                        var y = norm_y(x, mean, std);
+                                        data.push([x, y]);
+                                    }
+                                    var voted = [data[rating * 2],];
+                                    unnorm_avg += rating;
+
+                                    unnorm_series.push({
+                                        name: name,
+                                        data: data,
+                                        type: 'line',
+                                        symbol: 'none'
+                                    });
+                                    unnorm_series.push({
+                                        name: name,
+                                        data: voted,
+                                        type: 'scatter'
+                                    });
+
+                                    NORM_MEAN = 5;
+                                    NORM_STD = 3;
+                                    var actual_data = [];
+                                    for (var j = 0; j < data.length; j++) {
+                                        var x = data[j][0];
+                                        var actual_x = (x - mean) / std;
+                                        actual_x = (actual_x * NORM_STD) + NORM_MEAN;
+
+                                        var actual_y = norm_y(actual_x, NORM_MEAN, NORM_STD);
+                                        actual_data.push([actual_x, actual_y]);
+                                    }
+                                    var actual_rating = (rating - mean) / std;
+                                    actual_rating = (actual_rating * NORM_STD) + NORM_MEAN;
+                                    var voted = [[actual_rating, norm_y(actual_rating, NORM_MEAN, NORM_STD)],];
+                                    norm_avg += actual_rating;
+
+                                    norm_series.push({
+                                        name: name,
+                                        data: actual_data,
+                                        type: 'line',
+                                        symbol: 'none'
+                                    });
+                                    norm_series.push({
+                                        name: name,
+                                        data: voted,
+                                        type: 'scatter'
+                                    });
+                                }
+                                norm_avg = norm_avg / worker_normals.length;
+                                unnorm_avg = unnorm_avg / worker_normals.length;
+
+                                unnorm_series.push({
+                                    name: "avg_line",
+                                    data: [[unnorm_avg, 0], [unnorm_avg, 1]],
+                                    type: 'line',
+                                    symbol: 'none',
+                                    lineStyle: {
+                                        color: "#000",
+                                        width: 5
+                                    }
+                                });
+                                norm_series.push({
+                                    name: "avg_line",
+                                    data: [[norm_avg, 0], [norm_avg, 1]],
+                                    type: 'line',
+                                    symbol: 'none',
+                                    lineStyle: {
+                                        color: "#000",
+                                        width: 5
+                                    }
+                                });
+
+                                // based on prepared DOM, initialize echarts instance
+                                var myChart = echarts.init(document.getElementById('chart_{{ submission.id }}'));
+                                option = {
+                                    xAxis: {
+                                        min: -2,
+                                        max: 12
+                                    },
+                                    yAxis: {
+                                        type: 'value'
+                                    },
+                                    series: norm_series,
+                                    animationDurationUpdate: 5000,
+                                };
+
+                                // use configuration item and data specified to show chart
+                                myChart.setOption(option);
+
+                                var active_data = norm_series;
+                                setInterval(function () {
+                                    if (active_data == norm_series) {
+                                        active_data = unnorm_series;
+                                    } else {
+                                        active_data = norm_series;
+                                    }
+                                    myChart.setOption({
+                                        series: active_data,
+                                    });
+                                }, 5000);
+                            });
+                        </script>
+                        <div id="chart_{{ submission.id }}" style="width:100%; height:200px;"></div>
                     </div>
                 </div>
             </div>

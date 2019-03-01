@@ -8,25 +8,8 @@ from rest_framework.pagination import PageNumberPagination
 from rateme.models import Submission, User
 from rateme.serializers import SubmissionSerializer
 
-
-def index(request):
-    return render_to_response('objctify/index.html')
-
-
-def about(request):
-    return render_to_response('objctify/about.html')
-
-
-def author(request):
-    return render_to_response('objctify/author.html')
-
-
 def graph(request):
     return render_to_response('rateme/submission_graph.html')
-
-def morphFaces(request):
-    return render_to_response('objctify/3D/morphFaces.html')
-
 
 # Create your views here.
 class SubmissionListView(ListView):
