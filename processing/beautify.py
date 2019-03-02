@@ -143,6 +143,18 @@ def init_network():
         sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
         sess.run(init_op)
 
+        # load 3dmm shape and texture model from Tran et al.' CVPR2017
+        load_path = "./processing/Shape_Model/ini_ShapeTextureNet_model.ckpt"
+        saver_ini_shape_net.restore(sess, load_path)
+
+        # load our expression net model
+        load_path = "./processing/Expression_Model/ini_exprNet_model.ckpt"
+        saver_ini_expr_net.restore(sess, load_path)
+
+        # load 3dmm shape and texture model from Tran et al.' CVPR2017
+        load_path = "./processing/hotness_2_1200.ckpt"
+        all_saver.restore(sess, load_path)
+
 
 def rotated_rect_from_landmarks(landmarks, M, im):
     rotated_rect_ps = np.array([(np.matrix(M) * np.append(p, 1)[:, np.newaxis]) for p in landmarks],
