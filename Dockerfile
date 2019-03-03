@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf-dev \
     libsnappy-dev \
     protobuf-compiler \
+    libglfw3 \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN echo "deb http://deb.debian.org/debian jessie main" | tee -a /etc/apt/sources.list && \
@@ -121,7 +122,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir /usr/src/app/data && cd /usr/src/app/data && wget "http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2" && bzip2 -d shape_predictor_68_face_landmarks.dat.bz2
 ENV DLIB_SHAPEPREDICTOR_PATH /usr/src/app/data/shape_predictor_68_face_landmarks.dat
 
-RUN cd /usr/src/app && git clone https://github.com/ElliotSalisbury/FaceAnalysis.git && mv ./FaceAnalysis/Beautifier ./FaceAnalysis/US10k ./FaceAnalysis/RateMe .
+RUN cd /usr/src/app && git clone https://github.com/ElliotSalisbury/objctifyme.git
 #COPY ./data/eos/bfm_expression.bin /usr/lib/eos/install/share/bfm_expression.bin
 #COPY ./data/eos/ibug_to_bfm_expression.txt /usr/lib/eos/install/share/ibug_to_bfm_expression.txt
 COPY ./data/eos/ /usr/lib/eos/install/share/
