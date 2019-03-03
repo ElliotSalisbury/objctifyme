@@ -331,12 +331,12 @@ def beautify_image(image_orig_full, gender):
     results = {}
     results["rating"] = float(rating_orig)
     results["shape"] = shape_orig.tolist()
-    results["texture"] = texture_orig.tolist()
+    results["color"] = texture_orig.tolist()
     results["expression"] = expression_orig.tolist()
 
     results["new_rating"] = float(rating)
     results["new_shape"] = shape.tolist()
-    results["new_texture"] = texture.tolist()
+    results["new_color"] = texture.tolist()
 
     results["modelview"] = modelview
     results["projection"] = projection
