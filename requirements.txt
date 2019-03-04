@@ -6,6 +6,7 @@ msgpack_python==0.5.6
 gunicorn==19.9.0
 celery==4.2.1
 redis==3.2.0
+psycopg2==2.7.7
 
 praw==6.0.0
 imgurpython==1.1.7
@@ -22,5 +23,4 @@ matplotlib==3.0.2
 PyOpenGL==3.1.0
 glfw==1.7.0
 Pillow==5.4.1
-eos-py==1.1.0
 

@@ -12,7 +12,7 @@ web:
   env_file: .env
   environment:
     DEBUG: 'true'
-  command: /usr/local/bin/gunicorn django_server.wsgi:application -w 2 -b :8000 --reload
+  command: /usr/local/bin/gunicorn ratemescraper.wsgi:application -w 2 -b :8000 --reload
 
 celeryworker:
   restart: always
@@ -23,7 +23,7 @@ celeryworker:
   volumes_from:
     - web
   env_file: .env
-  command: celery -A django_server worker --loglevel=INFO --concurrency=1 -n worker1.%h
+  command: celery -A ratemescraper worker --loglevel=INFO --concurrency=1 -n worker1.%h
 
 nginx:
   restart: always
@@ -40,8 +40,6 @@ nginx:
 postgres:
   restart: always
   image: postgres:latest
-  ports:
-    - "5432:5432"
   volumes:
     - pgdata:/var/lib/postgresql/data/
 

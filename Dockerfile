@@ -28,17 +28,23 @@ RUN echo "deb http://deb.debian.org/debian jessie main" | tee -a /etc/apt/source
     libjasper-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+RUN echo "deb http://ftp.us.debian.org/debian testing main contrib non-free" | tee -a /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get -t testing install -y --no-install-recommends \
+    gcc-7 g++-7 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 #get the latest cmake
 RUN wget "https://github.com/Kitware/CMake/releases/download/v3.13.4/cmake-3.13.4-Linux-x86_64.sh" && sh ./cmake-3.13.4-Linux-x86_64.sh --skip-license --prefix=/usr/local && \
 export PATH=/usr/local/bin:$PATH
 
 # Install Boost 1.64 with Python lib
 WORKDIR "/opt"
-RUN wget https://sourceforge.net/projects/boost/files/boost/1.64.0/boost_1_64_0.tar.bz2 && \
-    tar --bzip2 -xf boost_1_64_0.tar.bz2 && \
-    rm boost_1_64_0.tar.bz2
+RUN wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.bz2 && \
+    tar --bzip2 -xf boost_1_69_0.tar.bz2 && \
+    rm boost_1_69_0.tar.bz2
 
-RUN cd boost_1_64_0/tools/build && \
+RUN cd boost_1_69_0/tools/build && \
     # Symlink the Python header files to the standard location.
     # This is important as the base image comes with custom Python 3.5 build
     # and thus the location of the header files is different.
@@ -47,7 +53,7 @@ RUN cd boost_1_64_0/tools/build && \
     ./b2 install --prefix=/opt/boost_build && \
     ln -s /opt/boost_build/bin/b2 /usr/bin/b2 && \
     ln -s /opt/boost_build/bin/bjam /usr/bin/bjam && \
-    cd /opt/boost_1_64_0 && \
+    cd /opt/boost_1_69_0 && \
     b2 install && \
     # Specify Python version explicitly as solution to https://github.com/boostorg/build/issues/194
     echo "using python : 3.5 ;" >> /etc/site-config.jam && \
@@ -80,27 +86,36 @@ RUN cd /usr/lib/opencv/build && \
     ldconfig
 
 #install caffe
-ENV CAFFE_ROOT=/opt/caffe
-WORKDIR $CAFFE_ROOT
-ENV CLONE_TAG=1.0
+#ENV CAFFE_ROOT=/opt/caffe
+#WORKDIR $CAFFE_ROOT
+#ENV CLONE_TAG=1.0
+#
+#RUN git clone -b ${CLONE_TAG} --depth 1 https://github.com/BVLC/caffe.git .
+#RUN pip install --upgrade pip && \
+#    cd python && for req in $(cat requirements.txt) pydot; do pip install $req; done && cd ..
+#RUN pip install protobuf==3.0.0-alpha-3 && \
+#    pip install python-dateutil --upgrade
+#RUN mkdir build && cd build && \
+#    cmake -DCPU_ONLY=1 \
+#    -Dpython_version=3 \
+#    -DPYTHON_INCLUDE_DIR=/usr/local/include/python3.5/ \
+#    -DPYTHON_LIBRARY=/usr/local/lib/libpython3.so / \
+#    .. && \
+#    make -j"$(nproc)"
+#
+#ENV PYCAFFE_ROOT $CAFFE_ROOT/python
+#ENV PYTHONPATH $PYCAFFE_ROOT:$PYTHONPATH
+#ENV PATH $CAFFE_ROOT/build/tools:$PYCAFFE_ROOT:$PATH
+#RUN echo "$CAFFE_ROOT/build/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
 
-RUN git clone -b ${CLONE_TAG} --depth 1 https://github.com/BVLC/caffe.git .
-RUN pip install --upgrade pip && \
-    cd python && for req in $(cat requirements.txt) pydot; do pip install $req; done && cd ..
-RUN pip install protobuf==3.0.0-alpha-3 && \
-    pip install python-dateutil --upgrade
-RUN mkdir build && cd build && \
-    cmake -DCPU_ONLY=1 \
-    -Dpython_version=3 \
-    -DPYTHON_INCLUDE_DIR=/usr/local/include/python3.5/ \
-    -DPYTHON_LIBRARY=/usr/local/lib/libpython3.so / \
-    .. && \
-    make -j"$(nproc)"
-
-ENV PYCAFFE_ROOT $CAFFE_ROOT/python
-ENV PYTHONPATH $PYCAFFE_ROOT:$PYTHONPATH
-ENV PATH $CAFFE_ROOT/build/tools:$PYCAFFE_ROOT:$PATH
-RUN echo "$CAFFE_ROOT/build/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
+# eos face fitting
+#RUN mkdir -p /usr/lib/eos && cd /usr/lib/eos && \
+#    git clone --recursive --branch v0.18.0 https://github.com/patrikhuber/eos.git
+#
+#RUN mkdir /usr/lib/eos/build && mkdir /usr/lib/eos/install && cd /usr/lib/eos/build && \
+#    cmake -G "Unix Makefiles" /usr/lib/eos/eos -DCMAKE_INSTALL_PREFIX=../install/ -DEOS_GENERATE_PYTHON_BINDINGS=ON && \
+#    cd /usr/lib/eos/build && make && make install && \
+#    cp /usr/lib/eos/install/python/eos.cpython-35m-x86_64-linux-gnu.so /usr/local/lib/python3.5/site-packages
 
 #install the python requirements
 RUN mkdir -p /usr/src/app
@@ -108,6 +123,7 @@ WORKDIR /usr/src/app
 
 COPY requirements.txt /usr/src/app/
 RUN pip install --no-cache-dir -r requirements.txt
+RUN C=`which gcc-7` CXX=`which g++-7` pip install eos-py
 
 #install the python app and copy the necessary files over
 RUN mkdir /usr/src/app/data && cd /usr/src/app/data && wget "http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2" && bzip2 -d shape_predictor_68_face_landmarks.dat.bz2
