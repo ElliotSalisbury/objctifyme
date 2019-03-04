@@ -25,7 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN echo "deb http://deb.debian.org/debian jessie main" | tee -a /etc/apt/sources.list && \
     apt-get update && \
     apt-get -t jessie install -y --no-install-recommends \
-    libjasper-dev
+    libjasper-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #get the latest cmake
 RUN wget "https://github.com/Kitware/CMake/releases/download/v3.13.4/cmake-3.13.4-Linux-x86_64.sh" && sh ./cmake-3.13.4-Linux-x86_64.sh --skip-license --prefix=/usr/local && \
@@ -101,16 +102,6 @@ ENV PYTHONPATH $PYCAFFE_ROOT:$PYTHONPATH
 ENV PATH $CAFFE_ROOT/build/tools:$PYCAFFE_ROOT:$PATH
 RUN echo "$CAFFE_ROOT/build/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
 
-# eos face fitting
-RUN mkdir -p /usr/lib/eos && cd /usr/lib/eos && \
-    git clone --recursive https://github.com/patrikhuber/eos.git
-
-RUN mkdir /usr/lib/eos/build && mkdir /usr/lib/eos/install && cd /usr/lib/eos/build && \
-    cmake -G "Unix Makefiles" /usr/lib/eos/eos -DCMAKE_INSTALL_PREFIX=../install/ -DEOS_GENERATE_PYTHON_BINDINGS=ON
-RUN cd /usr/lib/eos/build && make && make install
-RUN cp /usr/lib/eos/install/python/eos.cpython-35m-x86_64-linux-gnu.so /usr/local/lib/python3.5/site-packages
-
-
 #install the python requirements
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
@@ -123,11 +114,8 @@ RUN mkdir /usr/src/app/data && cd /usr/src/app/data && wget "http://dlib.net/fil
 ENV DLIB_SHAPEPREDICTOR_PATH /usr/src/app/data/shape_predictor_68_face_landmarks.dat
 
 RUN cd /usr/src/app && git clone https://github.com/ElliotSalisbury/objctifyme.git
-#COPY ./data/eos/bfm_expression.bin /usr/lib/eos/install/share/bfm_expression.bin
-#COPY ./data/eos/ibug_to_bfm_expression.txt /usr/lib/eos/install/share/ibug_to_bfm_expression.txt
 COPY ./data/eos/ /usr/lib/eos/install/share/
 
 ENV EOS_DATA_PATH /usr/lib/eos/install/share/
-
 
 COPY . /usr/src/app

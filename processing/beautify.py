@@ -290,7 +290,7 @@ def beautify_image(image_orig_full, gender):
         [(np.matrix(invM) * np.append(p, 1)[:, np.newaxis]) for p in landmarks_rot],
         dtype=np.int).squeeze()
 
-    print("\trunning shape and expression networks")
+    print("\trunning orig shape and expression networks")
     image = np.asarray(face_im)
     image = np.reshape(image, [1, image_size, image_size, 3])
     rating_orig, grad, shape_texture_orig, expression_orig = sess.run([hot_score, hot_grad, fc1ls, fc1le],
@@ -322,6 +322,7 @@ def beautify_image(image_orig_full, gender):
         warped_rotated = cv2.warpAffine(warpedim, M, (image_rotated.shape[1], image_rotated.shape[0]))
         face_im, _ = preprocess_image(warped_rotated, rotated_rect)
 
+        print("\trunning warped shape and expression networks")
         image = np.asarray(face_im)
         image = np.reshape(image, [1, image_size, image_size, 3])
         rating, grad = sess.run([hot_score, hot_grad], feed_dict={x: image})

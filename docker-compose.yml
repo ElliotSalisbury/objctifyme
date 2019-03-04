@@ -1,18 +1,12 @@
 web:
   restart: always
-  build: ./web
+  image: objctifyme/objctifyme:latest
   expose:
     - "8000"
   links:
     - postgres:postgres
     - redis:redis
   volumes:
-    - C:\Users\ellio\PycharmProjects\FaceSwap\DockerEnvironment\web\FaceSwapApp:/usr/src/app/FaceSwapApp
-    - C:\Users\ellio\PycharmProjects\FaceSwap\DockerEnvironment\web\django_server:/usr/src/app/django_server
-    - C:\Users\ellio\PycharmProjects\FaceSwap\DockerEnvironment\web\static:/usr/src/app/static
-    - C:\Users\ellio\PycharmProjects\circlelines\Beautifier:/usr/src/app/Beautifier
-    - C:\Users\ellio\PycharmProjects\circlelines\US10k:/usr/src/app/US10k
-    - C:\Users\ellio\PycharmProjects\circlelines\RateMe:/usr/src/app/RateMe
     - /usr/src/app
     - /uploads
   env_file: .env
@@ -22,7 +16,7 @@ web:
 
 celeryworker:
   restart: always
-  build: ./web
+  image: objctifyme/objctifyme:latest
   links:
     - postgres:postgres
     - redis:redis
