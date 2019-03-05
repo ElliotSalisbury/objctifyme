@@ -121,7 +121,6 @@ load_path = "./processing/Expression_Model/ini_exprNet_model.ckpt"
 saver_ini_expr_net.restore(sess, load_path)
 
 
-
 def rotated_rect_from_landmarks(landmarks, M, im):
     rotated_rect_ps = np.array([(np.matrix(M) * np.append(p, 1)[:, np.newaxis]) for p in landmarks],
                                dtype=np.float32).squeeze()
@@ -286,22 +285,33 @@ def extract_facial_features():
 
                     # save the shape, color, texture, expression to the database
                     print("\tsaving to db")
+                    landmarks_str = json.dumps(landmarks_cor.tolist())
                     shape_str = json.dumps(shape.tolist())
                     color_str = json.dumps(color.tolist())
                     expr_str = json.dumps(expr.tolist())
                     pitch, yaw, roll = pose_orig.get_rotation_euler_angles()
 
                     file_type = os.path.splitext(im_path)[1]
+                    relative_roi_path = relative_im_path.replace(file_type,
+                                                                 "_face{}_roi.jpg".format(face_id))
+                    roi_path = os.path.join(MEDIA_ROOT, relative_roi_path)
+                    cv2.imwrite(roi_path, face_im)
                     relative_texture_path = relative_im_path.replace(file_type,
                                                                      "_face{}_texture.jpg".format(face_id))
                     texture_path = os.path.join(MEDIA_ROOT, relative_texture_path)
                     cv2.imwrite(texture_path, texture[:, :, :3])
                     relative_texture_mask_path = relative_im_path.replace(file_type,
-                                                                     "_face{}_texture_mask.jpg".format(face_id))
+                                                                          "_face{}_texture_mask.jpg".format(face_id))
                     texture_mask_path = os.path.join(MEDIA_ROOT, relative_texture_mask_path)
                     cv2.imwrite(texture_mask_path, texture[:, :, 3])
 
                     imgprocessing = FaceProcessing(image=submissionimage,
+                                                   rect_x=rect_orig.left(),
+                                                   rect_y=rect_orig.top(),
+                                                   rect_w=rect_orig.width(),
+                                                   rect_h=rect_orig.height(),
+                                                   roi=relative_roi_path,
+                                                   landmarks=landmarks_str,
                                                    texture=relative_texture_path,
                                                    shape_coefficients=shape_str,
                                                    color_coefficients=color_str,

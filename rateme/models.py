@@ -107,6 +107,12 @@ class ImageProcessing(models.Model):
 
 class FaceProcessing(models.Model):
     image = models.ForeignKey("SubmissionImage", on_delete=models.CASCADE, related_name="face_processings")
+    rect_x = models.FloatField(null=True)
+    rect_y = models.FloatField(null=True)
+    rect_w = models.FloatField(null=True)
+    rect_h = models.FloatField(null=True)
+    roi = models.ImageField(max_length=4096, null=True)
+    landmarks = models.CharField(max_length=4096, null=True)
     texture = models.ImageField(max_length=4096)
     shape_coefficients = models.CharField(max_length=4096)
     color_coefficients = models.CharField(max_length=4096)
