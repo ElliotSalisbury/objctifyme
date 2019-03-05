@@ -26,6 +26,7 @@ def project(p, modelview, proj, viewport):
 def projectVertsTo2D(verts, pose, image):
     modelview = np.matrix(pose.get_modelview())
     proj = np.matrix(pose.get_projection())
+    proj[3,3] = 1
     viewport = np.array([0,image.shape[0], image.shape[1], -image.shape[0]])
 
     verts2d = np.zeros((verts.shape[0],2),dtype=np.float64)
@@ -133,10 +134,10 @@ def warpFace3D(im, oldMesh, pose, newMesh, accurate=True, fitter=None):
 
     warpedIm = warpFace(im, oldVerts2d, newVerts2d)
     # warpedIm = im.copy()
-    color_delta = getColorDelta(im, oldMesh, newMesh, pose)
-
-    #apply the color delta
-    warpedIm = np.clip(warpedIm + color_delta, 0, 255).astype(np.uint8)
+    # color_delta = getColorDelta(im, oldMesh, newMesh, pose)
+    #
+    # #apply the color delta
+    # warpedIm = np.clip(warpedIm + color_delta, 0, 255).astype(np.uint8)
 
     return warpedIm
 

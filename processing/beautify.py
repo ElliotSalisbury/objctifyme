@@ -245,6 +245,7 @@ def preprocess_image(im, rect=None, guess_rect=None):
 def decomposePose(mesh, pose, im):
     modelview = np.matrix(pose.get_modelview())
     proj = np.matrix(pose.get_projection())
+    proj[3, 3] = 1
     viewport = np.array([0, im.shape[0], im.shape[1], -im.shape[0]])
 
     modelview = modelview.tolist()
@@ -345,3 +346,7 @@ def beautify_image(image_orig_full, gender):
     results["indexs"] = indexs
 
     return results, warpedim
+
+if __name__ == "__main__":
+    im = cv2.imread(r"./test.jpg")
+    results, pro = beautify_image(im, "F")
