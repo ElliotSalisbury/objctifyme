@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 from processing.Beautifier.warpFace import warpFace, warpTriangle
 from processing.Beautifier.face3D.opengl import render_mesh
-# from opengltests2 import render_mesh
 
 MOUTH_POINTS = list(range(48, 61))
 RIGHT_BROW_POINTS = list(range(17, 22))
@@ -133,11 +132,10 @@ def warpFace3D(im, oldMesh, pose, newMesh, accurate=True, fitter=None):
         newVerts2d = newVerts2d_full[visibleVertIndexs]
 
     warpedIm = warpFace(im, oldVerts2d, newVerts2d)
-    # warpedIm = im.copy()
-    # color_delta = getColorDelta(im, oldMesh, newMesh, pose)
-    #
-    # #apply the color delta
-    # warpedIm = np.clip(warpedIm + color_delta, 0, 255).astype(np.uint8)
+    color_delta = getColorDelta(im, oldMesh, newMesh, pose)
+
+    #apply the color delta
+    warpedIm = np.clip(warpedIm + color_delta, 0, 255).astype(np.uint8)
 
     return warpedIm
 
