@@ -309,7 +309,7 @@ def beautify_image(image_orig_full, gender):
     delta = np.zeros_like(grad)
     exaggeration = np.ones_like(grad)
     exaggeration[:99] = 1
-    exaggeration[99:] = 1
+    exaggeration[99:] = 1.5
     for i in range(6):
         delta += grad * exaggeration
         new_shape_texture = shape_texture_orig + delta
