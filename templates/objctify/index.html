@@ -20,6 +20,7 @@
     <script type="text/javascript" src="{% static 'js/3dview/OrbitControls.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/3dview/3dview2.js' %}"></script>
     <script type="text/javascript" src="{% static 'js/imagewarp/img_warp.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/examples.js' %}"></script>
     <script>
         if (!String.prototype.includes) {
             String.prototype.includes = function () {
@@ -113,15 +114,15 @@
                 orig.appendTo('#originalImages');
 
                 //show the processed image
-                $("#orig_warped").click(function () {
+                $("#orig_warped").unbind("click").click(function () {
                     drawImageToCanvas(resizedImages[i].dataUrl);
                     createMesh(orig_meshverts, model.faces, model.UVs, orig_meshcolors);
                 });
-                $("#processed_warped").click(function () {
+                $("#processed_warped").unbind("click").click(function () {
                     drawImageToCanvas(processed_image);
                     createMesh(new_meshverts, model.faces, model.UVs, new_meshcolors);
                 });
-                $("#custom_warped").click(function() {
+                $("#custom_warped").unbind("click").click(function() {
                     updatemesh();
                 });
 
@@ -316,6 +317,7 @@
             $("#examplebtn").click(function (event) {
                 var i = $("#example_carousel > ul > li.active").index();
                 var exampleData = examples[i];
+                resizedImages = [{dataUrl: exampleData.result.images[0].original}];
                 checkAndDisplayResults(exampleData);
             });
 
