@@ -66,7 +66,7 @@ class Submission(models.Model):
             total_weighting = 0
             for comment in usable_comments:
                 rating = comment.rating
-                user_mean, user_std = comment.author.get_mean_std()
+                user_mean, user_std = comment.author.get_mean_std
 
                 actual_rating = (rating - user_mean) / user_std
                 actual_rating = (actual_rating * User.NORM_STD) + User.NORM_MEAN
